@@ -2,19 +2,18 @@
 // This file is subject to the terms and conditions defined in
 // LICENSE, which is part of this source code package
 
-using LibreLancer;
 using LibreLancer.Data.Schema;
 
-namespace LancerEdit
+namespace LibreLancer.ContentEdit.Model
 {
-    public class DefaultMaterialMap
+    public static class DefaultMaterialMap
     {
         public static void Init()
         {
             var map = new MaterialMap();
             map.AddMap("EcEtOcOt", "DcDtOcOt");
             map.AddMap("DcDtEcEt", "DcDtEt");
-            
+
             map.AddRegex("^nomad.*$","NomadMaterialNoBendy");
             map.AddRegex("^n-texture.*$","NomadMaterialNoBendy");
             map.AddRegex("^ui_.*","HUDIconMaterial");
@@ -26,7 +25,7 @@ namespace LancerEdit
             map.AddRegex("^k_glass$","HighGlassMaterial");
             map.AddRegex("^l_glass$","HighGlassMaterial");
             map.AddRegex("^r_glass$","HighGlassMaterial");
-            
+
             map.AddRegex("^planet.*_glass$", "GFGlassMaterial");
             map.AddRegex("^bw_glass$", "HighGlassMaterial");
             map.AddRegex("^o_glass$", "HighGlassMaterial");

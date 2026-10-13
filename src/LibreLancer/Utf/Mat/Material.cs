@@ -161,6 +161,7 @@ namespace LibreLancer.Utf.Mat
             "DcDtTwo", "DcDtEcTwo", "DcDtOcOtTwo", "DcDtEcOcOtTwo",
             "DcDtEt", "DcDtEtTwo", "EcEt", "EcEtTwo",
             "BtDetailMapMaterial", "BtDetailMapTwoMaterial",
+            "DcDtBt" // Handled by MaterialMap usually. We can support it.
         ];
 
         private RenderMaterial? _rmat;

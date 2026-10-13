@@ -11,6 +11,7 @@ using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using LibreLancer;
+using LibreLancer.ContentEdit;
 using LibreLancer.Dialogs;
 using LibreLancer.ImUI;
 
@@ -326,6 +327,16 @@ namespace LancerEdit
                     else
                     {
                         ImGui.Text("Finished");
+                        if (ImGui.Button("Save Log"))
+                        {
+                            FileDialog.Save(file =>
+                            {
+                                if (file != null)
+                                {
+                                    File.WriteAllLines(file, lines);
+                                }
+                            }, AppFilters.TxtFilter);
+                        }
                     }
                     ImGui.BeginChild($"##SCRIPTlog{unique}");
                     ImGui.PushFont(ImGuiHelper.SystemMonospace, 0);

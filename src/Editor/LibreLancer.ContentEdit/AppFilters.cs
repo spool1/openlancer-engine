@@ -80,4 +80,8 @@ public class AppFilters
             new FileFilter("Thn Files", "thn"),
             new FileFilter("Lua Files", "lua")
         );
+
+        public static readonly FileDialogFilters TxtFilter = new FileDialogFilters(
+            new FileFilter("Text Files", "txt")
+        );
 }
