@@ -266,11 +266,19 @@ namespace LancerEdit
             doUpdate = true;
             proc.OutputDataReceived += (sender, eventArgs) =>
             {
-                main.QueueUIThread(() => lines.Add(eventArgs.Data));
+                main.QueueUIThread(() =>
+                {
+                    if (eventArgs.Data != null)
+                        lines.Add(eventArgs.Data);
+                });
             };
             proc.ErrorDataReceived += (sender, eventArgs) =>
             {
-                main.QueueUIThread(() => lines.Add(eventArgs.Data));
+                main.QueueUIThread(() =>
+                {
+                    if (eventArgs.Data != null)
+                        lines.Add(eventArgs.Data);
+                });
             };
             proc.Exited += (sender, eventArgs) =>
             {
