@@ -40,9 +40,11 @@ namespace LibreLancer.Utf
         {
             fixtransform = new Transform3D(Origin, Rotation);
         }
+
+
         public override void Update(ChannelFloat distance, Quaternion quat)
         {
-            throw new NotImplementedException();
+            UpdateError();
         }
     }
 }

@@ -28,7 +28,6 @@ namespace LibreLancer.Utf.Anm
                     case "animation":
                         anm.Load(node, strings);
                         break;
-                    default: throw new Exception("Invalid Node in anm root: " + node.Name);
                 }
             }
         }
@@ -44,7 +43,6 @@ namespace LibreLancer.Utf.Anm
                     case "animation":
                         Load(node, table);
                         break;
-                    default: throw new Exception("Invalid Node in anm root: " + node.Name);
                 }
             }
         }

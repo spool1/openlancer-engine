@@ -61,5 +61,15 @@ namespace LibreLancer.Utf
         }
         public abstract void Reset();
         public abstract void Update(ChannelFloat distance, Quaternion quat);
+
+        private bool usedError = false;
+
+        protected void UpdateError()
+        {
+            if (usedError)
+                return;
+            usedError = true;
+            FLLog.Error("Cmp", $"Tried to move construct {ChildName} with unsupported animation");
+        }
     }
 }

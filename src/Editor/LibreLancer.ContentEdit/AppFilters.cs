@@ -22,6 +22,10 @@ public class AppFilters
             new FileFilter("Ale Files", "ale")
         );
 
+        public static readonly FileDialogFilters AnmFilters = new(
+            new FileFilter("Anm Files", "anm")
+        );
+
         public static readonly FileDialogFilters IniFilters = new FileDialogFilters(
             new FileFilter("Ini Files", "ini")
         );

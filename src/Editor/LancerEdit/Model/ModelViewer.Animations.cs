@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using LibreLancer;
 using LibreLancer.ContentEdit;
 using LibreLancer.ContentEdit.Model;
+using LibreLancer.Dialogs;
 using LibreLancer.ImUI;
 using LibreLancer.Utf;
 using LibreLancer.Utf.Anm;
@@ -36,8 +38,10 @@ partial class ModelViewer
         var isOpen = ImGui.CollapsingHeader("##Header", ImGuiTreeNodeFlags.AllowOverlap);
         ImGui.SameLine();
         if (ImGui.Button($"{Icons.Play}")) act = AnimEditAction.Play;
+        ImGui.SetItemTooltip("Play");
         ImGui.SameLine();
         if (ImGui.Button($"{Icons.Backward}")) act = AnimEditAction.Backwards;
+        ImGui.SetItemTooltip("Reverse");
         ImGui.PopStyleVar();
         ImGui.SameLine();
         ImGui.Text(name);
@@ -78,9 +82,9 @@ partial class ModelViewer
     void AnimationPanel()
     {
         var anm = ((CmpFile)drawable).Animation;
-        if (ImGui.Button("Reset")) animator.ResetAnimations();
+        if (ImGui.Button($"{Icons.SyncAlt} Reset")) animator.ResetAnimations();
         ImGui.SameLine();
-        if (ImGui.Button("New"))
+        if (ImGui.Button($"{Icons.PlusCircle} New"))
         {
             var c = NameInputConfig.Nickname("New Animation", x => anm.Scripts.ContainsKey(x.Trim()));
             c.Filter = AnimNameFilter;
@@ -93,11 +97,68 @@ partial class ModelViewer
         }
 
         ImGui.SameLine();
-        if (ImGuiExt.Button("Apply", _isDirtyAnm))
+        if (ImGuiExt.Button($"{Icons.Check} Apply", _isDirtyAnm))
         {
             SaveAnimations();
             _isDirtyAnm = false;
             parent.DirtyCountAnm--;
+        }
+
+        if (ImGui.Button($"{Icons.FileImport} Add From File"))
+        {
+            FileDialog.Open(x =>
+            {
+                if (x != null)
+                {
+                    try
+                    {
+                        using var stream = File.OpenRead(x);
+                        var anmFile = new AnmFile(x, stream);
+                        if (anmFile.Scripts.Count == 0)
+                        {
+                            popups.MessageBox("Empty File", "File contains no animation data.");
+                            return;
+                        }
+                        anmFile.Buffer.Commit();
+
+                        popups.OpenPopup(new AnimationImportPopup(anmFile, IterateConstructs().ToArray(), scripts =>
+                        {
+                            foreach (var sc in scripts)
+                            {
+                                string n = sc.Name;
+                                int i = 1;
+                                while (anm.Scripts.ContainsKey(n))
+                                {
+                                    n = $"{sc.Name}.{i++}";
+                                }
+                                sc.Name = n;
+                                anm!.Scripts[sc.Name] = sc;
+                            }
+                            OnDirtyAnm();
+                        }));
+                    }
+                    catch (Exception e)
+                    {
+                        popups.MessageBox("Error", e.ToString());
+                    }
+                }
+            }, AppFilters.UtfFilters);
+        }
+        ImGui.SameLine();
+        if (ImGuiExt.Button($"{Icons.FileExport} Save .anm", (anm?.Scripts.Count ?? 0) > 0))
+        {
+            FileDialog.Save(x =>
+            {
+                if (x != null)
+                {
+                    var output = new EditableUtf();
+                    var destNode = new LUtfNode() { Name = "Animation", Parent = output.Root };
+                    output.Root.Children!.Add(destNode);
+                    AnimationWriter.WriteAnimations(destNode, anm!);
+                    var res = output.Save(x);
+                    _window.ResultMessages(res);
+                }
+            }, AppFilters.AnmFilters);
         }
         ImGui.Separator();
         int uniqueid = 0;
