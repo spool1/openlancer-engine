@@ -264,14 +264,13 @@ namespace LancerEdit
             var proc = Process.Start(pi);
             proc.EnableRaisingEvents = true;
             doUpdate = true;
-            static string S(string s) => s?.Replace("%", "%%") ?? "";
             proc.OutputDataReceived += (sender, eventArgs) =>
             {
-                main.QueueUIThread(() => lines.Add(S(eventArgs.Data)));
+                main.QueueUIThread(() => lines.Add(eventArgs.Data));
             };
             proc.ErrorDataReceived += (sender, eventArgs) =>
             {
-                main.QueueUIThread(() => lines.Add(S(eventArgs.Data)));
+                main.QueueUIThread(() => lines.Add(eventArgs.Data));
             };
             proc.Exited += (sender, eventArgs) =>
             {
