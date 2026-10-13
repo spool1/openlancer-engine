@@ -77,5 +77,5 @@ bpy.context.view_layer.layer_collection.children["Hardpoints"].exclude = True
 bpy.context.view_layer.layer_collection.children["LODs"].exclude = True
 bpy.context.view_layer.layer_collection.children["Hulls"].exclude = True
 bpy.context.view_layer.layer_collection.children["Wireframes"].exclude = True
-bpy.context.scene.view_settings.view_transform = 'Filmic'
+#bpy.context.scene.view_settings.view_transform = 'Filmic' No longer valid enum (tested 5.2)
 bpy.ops.wm.save_as_mainfile(filepath=BLEND_FILEPATH)
