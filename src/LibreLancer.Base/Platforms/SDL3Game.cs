@@ -40,7 +40,7 @@ internal class SDL3Game : IGame
     static unsafe SDL3Game()
     {
         _mimeTypes = UnsafeHelpers.Allocate(IntPtr.Size);
-        var arrayMimetypeNative1 = UnsafeHelpers.StringToNativeUTF8(ARRAY_MIMETYPE);
+        var arrayMimetypeNative1 = Marshal.StringToHGlobalAnsi(ARRAY_MIMETYPE);
         *((IntPtr*)(IntPtr)_mimeTypes) = (IntPtr)arrayMimetypeNative1;
     }
 
