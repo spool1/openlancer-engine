@@ -14,6 +14,7 @@ using ImGuiNET;
 using LancerEdit.Audio;
 using LancerEdit.GameContent;
 using LancerEdit.GameContent.MissionEditor;
+using LancerEdit.ModelEditor;
 using LancerEdit.Shaders;
 using LancerEdit.Updater;
 using LancerEdit.Utf.Popups;

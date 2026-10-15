@@ -9,7 +9,7 @@ using LibreLancer;
 using LibreLancer.Graphics;
 using LibreLancer.Graphics.Vertices;
 
-namespace LancerEdit
+namespace LancerEdit.ModelEditor
 {
     // Adapted from http://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
     public static class GridRender

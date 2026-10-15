@@ -13,9 +13,9 @@ using LibreLancer.Utf;
 using LibreLancer.Utf.Anm;
 using LibreLancer.Utf.Cmp;
 
-namespace LancerEdit;
+namespace LancerEdit.ModelEditor;
 
-partial class ModelViewer
+partial class ModelEditorTab
 {
     enum AnimEditAction { None, Play, Backwards, Rename, Delete }
     bool AnimationHeader(string name, float playTime, out AnimEditAction act)
@@ -79,11 +79,92 @@ partial class ModelViewer
         return null;
     }
 
+    public void ResetAnimationPlayback()
+    {
+        animator.ResetAnimations();
+    }
+
+    class AddJointMap(Script target, JointMap jointMap, ModelEditorTab parent) : EditorAction
+    {
+        public override void Commit()
+        {
+            target.JointMaps.Add(jointMap);
+        }
+
+        public override void Undo()
+        {
+            target.JointMaps.RemoveAt(target.JointMaps.Count - 1);
+            parent.ResetAnimationPlayback();
+        }
+
+        public override string ToString() => $"Add Joint Map '{jointMap.ChildName}'";
+    }
+
+    class AddScript(AnmFile anm, Script sc, ModelEditorTab parent) : EditorAction
+    {
+        public override void Commit()
+        {
+            anm.Scripts.Add(sc.Name, sc);
+        }
+
+        public override void Undo()
+        {
+            anm.Scripts.Remove(sc.Name);
+            parent.ResetAnimationPlayback();
+        }
+
+        public override string ToString() => $"Add Script '{sc.Name}'";
+    }
+
+    class RemoveJointMap(Script sc, int index, JointMap jointMap, ModelEditorTab parent) : EditorAction
+    {
+        public override void Commit()
+        {
+            sc.JointMaps.RemoveAt(index);
+            parent.ResetAnimationPlayback();
+        }
+
+        public override void Undo()
+        {
+            sc.JointMaps.Insert(index, jointMap);
+            parent.ResetAnimationPlayback();
+        }
+
+        public override string ToString() => $"Remove Joint Map '{jointMap.ChildName}'";
+    }
+
+    class RemoveScript(AnmFile anm, Script sc, ModelEditorTab parent) : EditorAction
+    {
+        public override void Commit()
+        {
+            anm.Scripts.Remove(sc.Name);
+            parent.ResetAnimationPlayback();
+        }
+
+        public override void Undo()
+        {
+            anm.Scripts.Add(sc.Name, sc);
+        }
+
+        public override string ToString() => $"Remove Script '{sc.Name}'";
+    }
+
+    class RenameScript(Script target, AnmFile anm, string oldValue, string newValue)
+        : EditorModification<string>(oldValue, newValue)
+    {
+        public override void Set(string value)
+        {
+            anm.Scripts.Remove(target.Name);
+            target.Name = value;
+            anm.Scripts[target.Name] = target;
+        }
+
+        public override string ToString() => $"Rename Script '{oldValue}'->'{newValue}";
+    }
+
     void AnimationPanel()
     {
         var anm = ((CmpFile)drawable).Animation;
-        if (ImGui.Button($"{Icons.SyncAlt} Reset")) animator.ResetAnimations();
-        ImGui.SameLine();
         if (ImGui.Button($"{Icons.PlusCircle} New"))
         {
             var c = NameInputConfig.Nickname("New Animation", x => anm.Scripts.ContainsKey(x.Trim()));
@@ -91,19 +172,9 @@ partial class ModelViewer
             popups.OpenPopup(new NameInputPopup(c, "", newName =>
             {
                 newName = newName.Trim();
-                anm.Scripts[newName] = new Script(newName);
-                OnDirtyAnm();
+                undoBuffer.Commit(new AddScript(anm, new Script(newName), this));
             }));
         }
-
-        ImGui.SameLine();
-        if (ImGuiExt.Button($"{Icons.Check} Apply", _isDirtyAnm))
-        {
-            SaveAnimations();
-            _isDirtyAnm = false;
-            parent.DirtyCountAnm--;
-        }
-
         if (ImGui.Button($"{Icons.FileImport} Add From File"))
         {
             FileDialog.Open(x =>
@@ -123,6 +194,7 @@ partial class ModelViewer
 
                         popups.OpenPopup(new AnimationImportPopup(anmFile, IterateConstructs().ToArray(), scripts =>
                         {
+                            List<EditorAction> adds = new();
                             foreach (var sc in scripts)
                             {
                                 string n = sc.Name;
@@ -132,9 +204,10 @@ partial class ModelViewer
                                     n = $"{sc.Name}.{i++}";
                                 }
                                 sc.Name = n;
-                                anm!.Scripts[sc.Name] = sc;
+                                adds.Add(new AddScript(anm, sc, this));
                             }
-                            OnDirtyAnm();
+                            if(adds.Count > 0)
+                                undoBuffer.Commit(EditorAggregateAction.Create(adds.ToArray()));
                         }));
                     }
                     catch (Exception e)
@@ -161,6 +234,8 @@ partial class ModelViewer
             }, AppFilters.AnmFilters);
         }
         ImGui.Separator();
+        if (ImGui.Button($"{Icons.SyncAlt} Reset Playback")) ResetAnimationPlayback();
+
         int uniqueid = 0;
         foreach (var sc in anm.Scripts)
         {
@@ -170,7 +245,7 @@ partial class ModelViewer
                 ImGui.BeginGroup();
                 if (ImGui.Button("Add Joint Map"))
                 {
-                    popups.OpenPopup(new AddJointMap(IterateConstructs(), sc.Value, con =>
+                    popups.OpenPopup(new AddJointMapPopup(IterateConstructs(), sc.Value, con =>
                     {
                         int type = 0x1;
                         if (con is SphereConstruct) type = 0x4;
@@ -178,8 +253,8 @@ partial class ModelViewer
                         var jm = new JointMap();
                         jm.ParentName = con.ParentName;
                         jm.ChildName = con.ChildName;
-                        jm.Channel = new(type, 0, -1, new EditableAnmBuffer(2048));
-                        sc.Value.JointMaps.Add(jm);
+                        jm.Channel = new(type, 0, -1, new EditableAnmBuffer(64));
+                        undoBuffer.Commit(new AddJointMap(sc.Value, jm, this));
                     }));
                 }
                 for (int i = 0; i < sc.Value.JointMaps.Count; i++)
@@ -188,8 +263,7 @@ partial class ModelViewer
                     ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(0,0));
                     if (ImGui.Button($"{Icons.Edit}"))
                     {
-                        popups.OpenPopup(new JointMapEditor(sc.Value.JointMaps, i, sc.Value.Name));
-                        OnDirtyAnm();
+                        popups.OpenPopup(new JointMapEditor(sc.Value.JointMaps, i, sc.Value.Name, undoBuffer, this));
                     }
                     ImGui.SameLine();
                     if (ImGui.Button($"{Icons.TrashAlt}"))
@@ -197,8 +271,8 @@ partial class ModelViewer
                         int index = i;
                         _window.Confirm($"Are you sure you want to delete {sc.Value.JointMaps[i].ChildName}?", () =>
                         {
+                            undoBuffer.Commit(new RemoveJointMap(sc.Value, index, sc.Value.JointMaps[index], this));
                             sc.Value.JointMaps.RemoveAt(index);
-                            OnDirtyAnm();
                         });
                     }
                     ImGui.SameLine();
@@ -220,8 +294,7 @@ partial class ModelViewer
                 case AnimEditAction.Delete:
                     _window.Confirm($"Are you sure you want to delete {sc.Key}?", () =>
                     {
-                        anm.Scripts.Remove(sc.Key);
-                        OnDirtyAnm();
+                        undoBuffer.Commit(new RemoveScript(anm, sc.Value, this));
                     });
                     break;
                 case AnimEditAction.Rename:
@@ -234,10 +307,8 @@ partial class ModelViewer
                     popups.OpenPopup(new NameInputPopup(c, sc.Key, newName =>
                     {
                         newName = newName.Trim();
-                        anm.Scripts.Remove(oldName);
-                        script.Name = newName;
-                        anm.Scripts[newName] = script;
-                        OnDirtyAnm();
+                        if(oldName != newName)
+                            undoBuffer.Commit(new RenameScript(script, anm, oldName, newName));
                     }));
                     break;
                 }
@@ -247,7 +318,7 @@ partial class ModelViewer
     }
 
 
-    void SaveAnimations()
+    void WriteAnimations()
     {
         var destNode = hprefs.RootNode.Children.FirstOrDefault(x =>
             x.Name.Equals("animation", StringComparison.OrdinalIgnoreCase));

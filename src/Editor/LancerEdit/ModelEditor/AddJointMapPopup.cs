@@ -6,9 +6,9 @@ using LibreLancer.ImUI;
 using LibreLancer.Utf;
 using LibreLancer.Utf.Anm;
 
-namespace LancerEdit;
+namespace LancerEdit.ModelEditor;
 
-public class AddJointMap : PopupWindow
+public class AddJointMapPopup : PopupWindow
 {
     public override string Title { get; set; } = "Add Joint Map";
     public override ImGuiWindowFlags WindowFlags => ImGuiWindowFlags.AlwaysAutoResize;
@@ -17,7 +17,7 @@ public class AddJointMap : PopupWindow
     private int selectedIndex = -1;
     private Action<AbstractConstruct> onAdd;
 
-    public AddJointMap(IEnumerable<AbstractConstruct> allParts, Script sc, Action<AbstractConstruct> onAdd)
+    public AddJointMapPopup(IEnumerable<AbstractConstruct> allParts, Script sc, Action<AbstractConstruct> onAdd)
     {
         this.onAdd = onAdd;
         foreach (var p in allParts)

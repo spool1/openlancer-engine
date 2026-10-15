@@ -204,8 +204,8 @@ public static class ModelExporter
         if (node.Construct is SphereConstruct sphere)
         {
             sm.Properties["construct"] = "sphere";
-            sm.Properties["min"] = new Vector3(sphere.Min1, sphere.Min2, sphere.Min3);
-            sm.Properties["max"] = new Vector3(sphere.Max1, sphere.Max2, sphere.Max3);
+            sm.Properties["min"] = sphere.Min;
+            sm.Properties["max"] = sphere.Max;
             sm.Properties["offset"] = sphere.Offset;
         }
 

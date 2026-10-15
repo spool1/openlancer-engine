@@ -295,8 +295,8 @@ public class ImportedModel(string name, string copyright, ImportedModelNode root
                 {
                     Rotation = rot, Origin = origin,
                     Offset = offset,
-                    Min1 = minaxis.X, Min2 = minaxis.Y, Min3 = minaxis.Z,
-                    Max1 = maxaxis.X, Max2 = maxaxis.Y, Max3 = maxaxis.Z,
+                    Min = minaxis,
+                    Max = maxaxis,
                     ParentName = parentName,
                     ChildName = childName
                 }, propsSet);

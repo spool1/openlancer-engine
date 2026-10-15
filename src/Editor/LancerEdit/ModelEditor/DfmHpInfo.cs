@@ -3,7 +3,7 @@ using LibreLancer;
 using LibreLancer.ImUI;
 using LibreLancer.Utf.Dfm;
 
-namespace LancerEdit;
+namespace LancerEdit.ModelEditor;
 
 public class DfmHpInfo : PopupWindow
 {

@@ -2,12 +2,11 @@
 // This file is subject to the terms and conditions defined in
 // LICENSE, which is part of this source code package
 
-using System;
 using System.Collections.Generic;
 using LibreLancer.ContentEdit;
 using LibreLancer.ContentEdit.Model;
 
-namespace LancerEdit
+namespace LancerEdit.ModelEditor
 {
     //Class for keeping hardpoints node references, and animations node
     public class ModelNodes

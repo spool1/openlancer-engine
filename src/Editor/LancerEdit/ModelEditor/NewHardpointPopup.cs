@@ -4,7 +4,7 @@ using ImGuiNET;
 using LibreLancer;
 using LibreLancer.ImUI;
 
-namespace LancerEdit;
+namespace LancerEdit.ModelEditor;
 
 public class NewHardpointPopup : PopupWindow
 {

@@ -5,9 +5,8 @@ using LibreLancer.Graphics;
 using LibreLancer.Graphics.Vertices;
 using LibreLancer.Resources;
 using LibreLancer.Utf.Cmp;
-using LibreLancer.Utf.Vms;
 
-namespace LancerEdit;
+namespace LancerEdit.ModelEditor;
 
 public class NormalsView : IDisposable
 {

@@ -6,7 +6,7 @@ using LibreLancer.ContentEdit.Model;
 using LibreLancer.ImUI;
 using LibreLancer.Utf.Anm;
 
-namespace LancerEdit;
+namespace LancerEdit.ModelEditor;
 
 public class JointMapEditor : PopupWindow
 {
@@ -16,20 +16,25 @@ public class JointMapEditor : PopupWindow
 
     private RefList<JointMap> _srcList;
     private int _srcIndex;
-    ref JointMap DestMap => ref _srcList[_srcIndex];
 
     private EditableAnmBuffer buffer;
+    private EditorUndoBuffer undoBuffer;
     private JointMap jointMap;
+    private ModelEditorTab parent;
 
-    public JointMapEditor(RefList<JointMap> jms, int index, string scriptName)
+    public JointMapEditor(RefList<JointMap> jms, int index, string scriptName, EditorUndoBuffer undoBuffer,
+        ModelEditorTab parent)
     {
         _srcList = jms;
         _srcIndex = index;
-        Title = $"{DestMap.ChildName} ({scriptName})";
+        ref JointMap destMap =  ref _srcList[_srcIndex];
+        Title = $"{destMap.ChildName} ({scriptName})";
 
-        buffer = new EditableAnmBuffer(ref DestMap.Channel);
-        jointMap = DestMap;
+        buffer = new EditableAnmBuffer(ref destMap.Channel);
+        jointMap = destMap;
         jointMap.Channel.SetBuffer(buffer);
+        this.undoBuffer = undoBuffer;
+        this.parent = parent;
     }
 
     private const int SUPPORTED_MASK = 0x1 | 0x2 | 0x4;
@@ -110,7 +115,11 @@ public class JointMapEditor : PopupWindow
         }
         if (ImGui.Button("Save"))
         {
-            DestMap = jointMap;
+            var lst = _srcList;
+            var idx = _srcIndex;
+            undoBuffer.Set("Joint Map", () => ref lst[idx], jointMap, () => {
+                parent.ResetAnimationPlayback();
+            });
             ImGui.CloseCurrentPopup();
         }
         ImGui.SameLine();

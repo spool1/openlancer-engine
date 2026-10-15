@@ -1,10 +1,8 @@
-using System.Numerics;
 using ImGuiNET;
-using LibreLancer;
 using LibreLancer.ImUI;
 using LibreLancer.Render;
 
-namespace LancerEdit;
+namespace LancerEdit.ModelEditor;
 
 public class DfmBoneInfo : PopupWindow
 {

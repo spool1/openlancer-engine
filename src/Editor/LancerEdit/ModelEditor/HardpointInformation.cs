@@ -4,10 +4,9 @@
 
 using System;
 using System.Collections.Generic;
-using LibreLancer;
 using LibreLancer.ImUI;
 
-namespace LancerEdit
+namespace LancerEdit.ModelEditor
 {
     public enum HpNaming
     {

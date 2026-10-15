@@ -21,12 +21,11 @@ using LibreLancer.Render;
 using LibreLancer.Render.Cameras;
 using LibreLancer.Render.Materials;
 using LibreLancer.Resources;
-using LibreLancer.Shaders;
 using LibreLancer.Sur;
 using SimpleMesh;
 using Material = LibreLancer.Utf.Mat.Material;
 
-namespace LancerEdit;
+namespace LancerEdit.ModelEditor;
 
 public class ImportModelTab : EditorTab
 {

@@ -3,21 +3,16 @@
 // LICENSE, which is part of this source code package
 
 using System;
-using System.Numerics;
-using System.Linq;
 using System.Collections.Generic;
 using System.IO;
-using LibreLancer;
-using LibreLancer.Utf.Mat;
-using LibreLancer.Utf.Cmp;
-using DF = LibreLancer.Utf.Dfm;
-using ImGuiNET;
+using System.Linq;
+using System.Numerics;
 using LancerEdit.Materials;
+using LibreLancer;
 using LibreLancer.Data;
 using LibreLancer.Data.GameData;
 using LibreLancer.Graphics;
 using LibreLancer.Graphics.Vertices;
-using LibreLancer.ImUI;
 using LibreLancer.Physics;
 using LibreLancer.Render;
 using LibreLancer.Render.Cameras;
@@ -25,10 +20,13 @@ using LibreLancer.Render.Materials;
 using LibreLancer.Resources;
 using LibreLancer.Sur;
 using LibreLancer.Thn;
+using LibreLancer.Utf.Cmp;
+using LibreLancer.Utf.Mat;
+using DF = LibreLancer.Utf.Dfm;
 
-namespace LancerEdit
+namespace LancerEdit.ModelEditor
 {
-    public partial class ModelViewer
+    public partial class ModelEditorTab
 	{
         bool showGrid = false;
         Viewport3D modelViewport;
@@ -185,7 +183,7 @@ namespace LancerEdit
             }
         }
 
-        SurModel GetSurModel(LibreLancer.Physics.ConvexMesh[] meshes, RigidModelPart part, Color4 color)
+        SurModel GetSurModel(ConvexMesh[] meshes, RigidModelPart part, Color4 color)
         {
             var mdl = new SurModel() { Part = part };
             if (color != surPart) mdl.Hardpoint = true;
@@ -530,18 +528,18 @@ namespace LancerEdit
             _window.LineRenderer.StartFrame(_window.RenderContext);
             foreach (var tr in gizmos)
             {
-                if (tr.Enabled || tr.Override != null)
+                if (tr.Enabled || tr.Editing)
                 {
-                    var transform = tr.Override ?? (tr.Hardpoint.HpTransformInfo.Matrix());
+                    var transform = tr.Hardpoint.HpTransformInfo.Matrix();
                     //arc
                     if(tr.Hardpoint.Definition is RevoluteHardpointDefinition) {
                         var rev = (RevoluteHardpointDefinition)tr.Hardpoint.Definition;
-                        var min = tr.Override == null ? rev.Min : tr.EditingMin;
-                        var max = tr.Override == null ? rev.Max : tr.EditingMax;
+                        var min = rev.Min;
+                        var max = rev.Max;
                         GizmoRender.AddGizmoArc(_window.LineRenderer, gizmoScale,transform * (tr.Parent?.LocalTransform ?? Transform3D.Identity).Matrix() * matrix, min,max);
                     }
                     //draw (red for editing, light pink for normal)
-                    GizmoRender.AddGizmo(_window.LineRenderer, gizmoScale,transform * (tr.Parent?.LocalTransform ?? Transform3D.Identity).Matrix() * matrix, tr.Override != null ? Color4.Red : Color4.LightPink);
+                    GizmoRender.AddGizmo(_window.LineRenderer, gizmoScale,transform * (tr.Parent?.LocalTransform ?? Transform3D.Identity).Matrix() * matrix, tr.Editing ? Color4.Red : Color4.LightPink);
                 }
             }
             _window.LineRenderer.Render();

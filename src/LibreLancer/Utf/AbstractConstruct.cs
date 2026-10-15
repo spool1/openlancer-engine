@@ -15,8 +15,8 @@ namespace LibreLancer.Utf
         private const int STR_LENGTH = 64;
         public string ParentName { get; set; } = null!;
         public string ChildName { get; set; } = null!;
-        public Vector3 Origin { get; set; }
-        public Quaternion Rotation { get; set; }
+        public Vector3 Origin;
+        public Quaternion Rotation;
 
         public abstract Transform3D LocalTransform { get; }
 

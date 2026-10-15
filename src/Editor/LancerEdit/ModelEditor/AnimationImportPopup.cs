@@ -9,7 +9,7 @@ using LibreLancer.ImUI;
 using LibreLancer.Utf;
 using LibreLancer.Utf.Anm;
 
-namespace LancerEdit;
+namespace LancerEdit.ModelEditor;
 
 public class AnimationImportPopup : PopupWindow
 {

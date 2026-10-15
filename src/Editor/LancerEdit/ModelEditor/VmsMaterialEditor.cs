@@ -3,14 +3,13 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using ImGuiNET;
-using LibreLancer;
 using LibreLancer.ContentEdit;
 using LibreLancer.Data;
 using LibreLancer.ImUI;
 using LibreLancer.Resources;
 using LibreLancer.Utf.Vms;
 
-namespace LancerEdit;
+namespace LancerEdit.ModelEditor;
 
 public class VmsMaterialEditor : PopupWindow
 {

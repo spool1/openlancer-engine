@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using ImGuiNET;
 using LancerEdit.GameContent.Popups;
+using LancerEdit.ModelEditor;
 using LibreLancer;
 using LibreLancer.ContentEdit;
 using LibreLancer.Data;

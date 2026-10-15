@@ -7,7 +7,7 @@ using System.Numerics;
 using LibreLancer;
 using LibreLancer.Render;
 
-namespace LancerEdit
+namespace LancerEdit.ModelEditor
 {
     static class GizmoRender
     {

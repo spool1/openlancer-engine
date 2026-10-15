@@ -19,12 +19,12 @@ namespace LibreLancer.ContentEdit.Model
             writer.Write(con.Offset.Y);
             writer.Write(con.Offset.Z);
             WriteMatrix3x3(con.Rotation);
-            writer.Write(con.Min1);
-            writer.Write(con.Max1);
-            writer.Write(con.Min2);
-            writer.Write(con.Max2);
-            writer.Write(con.Min3);
-            writer.Write(con.Max3);
+            writer.Write(con.Min.X);
+            writer.Write(con.Max.X);
+            writer.Write(con.Min.Y);
+            writer.Write(con.Max.Y);
+            writer.Write(con.Min.Z);
+            writer.Write(con.Max.Z);
         }
     }
     public class PrisConstructor : PartNodeConstructor

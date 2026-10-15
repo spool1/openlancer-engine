@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
 using LancerEdit.GameContent.Lookups;
+using LancerEdit.ModelEditor;
 using LibreLancer;
 using LibreLancer.ImUI;
 using LibreLancer.Render;

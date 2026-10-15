@@ -8,36 +8,38 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
-using LibreLancer;
-using LibreLancer.ImUI;
-using LibreLancer.Utf.Cmp;
-using LibreLancer.Utf.Mat;
-using LibreLancer.Utf;
-using Anm = LibreLancer.Utf.Anm;
-using DF = LibreLancer.Utf.Dfm;
 using ImGuiNET;
+using LibreLancer;
 using LibreLancer.ContentEdit;
 using LibreLancer.ContentEdit.Model;
 using LibreLancer.Dialogs;
 using LibreLancer.Graphics;
+using LibreLancer.ImUI;
 using LibreLancer.Render;
 using LibreLancer.Resources;
 using LibreLancer.Sur;
+using LibreLancer.Utf;
+using LibreLancer.Utf.Cmp;
+using LibreLancer.Utf.Mat;
 using LibreLancer.World;
 using LibreLancer.World.Components;
 using SimpleMesh;
+using Anm = LibreLancer.Utf.Anm;
+using DF = LibreLancer.Utf.Dfm;
 using Material = LibreLancer.Utf.Mat.Material;
 
-namespace LancerEdit
+namespace LancerEdit.ModelEditor
 {
-    public partial class ModelViewer : EditorTab
+    public partial class ModelEditorTab : EditorTab
     {
+        public string FilePath;
+        public EditableUtf Utf;
+
         Lighting lighting;
         IDrawable drawable;
         RenderContext rstate;
         CommandBuffer buffer;
-        ResourceManager res;
-        public string Name;
+        GameResourceManager res;
         int viewMode = 0;
         public static readonly DropdownOption[] ViewModes = new[]
         {
@@ -91,7 +93,6 @@ namespace LancerEdit
         Dictionary<int, Material> partMaterials = new Dictionary<int, Material>();
         List<HardpointGizmo> gizmos = new List<HardpointGizmo>();
         AnimationComponent animator;
-        UtfTab parent;
         MainWindow _window;
         PopupManager popups;
         ModelNodes hprefs;
@@ -101,27 +102,49 @@ namespace LancerEdit
         string currentFilter;
         bool hasVWire = false;
         bool showWarnings = false;
+        private EditorUndoBuffer undoBuffer = new();
+        private bool showUndoHistory = false;
+        private EditorAction? lastAction = null;
 
         private RigidModel vmsModel;
 
         private VerticalTabLayout layout;
+        private string resIdentifier;
+        private bool detachedResources;
 
-        public ModelViewer(string name, IDrawable drawable, MainWindow win, UtfTab parent, ModelNodes hprefs)
+        public bool Dirty { get; private set; }
+
+
+
+        public void UpdateTitle()
+        {
+            Title = $"Model Editor - {DocumentName}";
+        }
+
+        public ModelEditorTab(IDrawable drawable, MainWindow win, UtfTab parent, ModelNodes hprefs)
         {
             blenderEnabled = Blender.BlenderPathValid(win.Config.BlenderPath);
             selectedCam = win.Config.DefaultCameraMode;
             viewMode = win.Config.DefaultRenderMode;
-            Title = string.Format("Model Viewer ({0})",name);
-            Name = name;
+            undoBuffer.Hook = OnEditAction;
             this.drawable = drawable;
-            this.parent = parent;
             this.TabColor = parent.TabColor;
             this.hprefs = hprefs;
             rstate = win.RenderContext;
             res = parent.DetachedResources ?? win.Resources;
+            detachedResources = parent.DetachedResources != null;
             buffer = win.Commands;
             _window = win;
-            SaveStrategy = parent.SaveStrategy;
+            if (drawable is CmpFile || drawable is ModelFile)
+            {
+                SaveStrategy = new ModelSaveStrategy(win, this);
+            }
+            Utf = parent.Utf;
+            FilePath = parent.FilePath;
+            DocumentName = parent.DocumentName;
+            resIdentifier = parent.Unique.ToString();
+
+            UpdateTitle();
             if (drawable is CmpFile)
             {
                 //Setup Editor UI for constructs + hardpoints
@@ -183,6 +206,14 @@ namespace LancerEdit
                     if(p.Wireframe != null) hasVWire = true;
                 }
             }
+
+            if (!string.IsNullOrEmpty(FilePath) && (drawable is CmpFile || drawable is ModelFile))
+            {
+                var surPath = Path.ChangeExtension(FilePath, ".sur");
+                if(File.Exists(surPath))
+                    ReadSur(surPath);
+            }
+
             SetupViewport();
             maxDistance += 50;
 
@@ -201,6 +232,15 @@ namespace LancerEdit
             if(drawable is DF.DfmFile)
                 layout.TabsLeft.Add(new(Icons.FileExport, "Export", 6));
             layout.TabsLeft.Add(new(Icons.Cog, "Presets", 5));
+        }
+
+        private void OnEditAction()
+        {
+            Dirty = true;
+            foreach (var hp in gizmos)
+            {
+                hp.Hardpoint.RefreshValues();
+            }
         }
 
         void DrawLeft(int tag)
@@ -262,7 +302,7 @@ namespace LancerEdit
                 ct.CheckItem("Normals", ref drawNormals);
                 if (ct.ButtonItem(Icons.Link.ToString(), tooltip: "Show associated files"))
                 {
-                    _window.OpenResourcesFiltered(Name);
+                    _window.OpenResourcesFiltered(DocumentName);
                 };
             }
             var yPos = ImGui.GetFrameHeightWithSpacing();
@@ -276,6 +316,9 @@ namespace LancerEdit
             {
                 ResetCamera();
             }
+            ImGui.SameLine();
+            if (ImGuiExt.ToggleButton("Undo History", showUndoHistory))
+                showUndoHistory = !showUndoHistory;
             ImGui.SameLine();
             //
             if (!(drawable is SphFile) && !(drawable is DF.DfmFile))
@@ -364,29 +407,11 @@ namespace LancerEdit
                 viewButtonsWidth = ImGui.GetWindowWidth() + 60;
                 ImGui.End();
             }
-        }
 
-        //For warnings
-        bool _isDirtyHp = false;
-        public void OnDirtyHp()
-        {
-            if (_isDirtyHp) return;
-            _isDirtyHp = true;
-            parent.DirtyCountHp++;
-        }
-        bool _isDirtyPart = false;
-        public void OnDirtyPart()
-        {
-            if (_isDirtyPart) return;
-            _isDirtyPart = true;
-            parent.DirtyCountPart++;
-        }
-        private bool _isDirtyAnm = false;
-        public void OnDirtyAnm()
-        {
-            if (_isDirtyAnm) return;
-            _isDirtyAnm = true;
-            parent.DirtyCountAnm++;
+            if (showUndoHistory)
+            {
+                undoBuffer.DisplayStack();
+            }
         }
 
         public override void Update(double elapsed)
@@ -404,6 +429,8 @@ namespace LancerEdit
             if (hk == Hotkeys.Deselect) selectedNode = null;
             if (hk == Hotkeys.ResetViewport) modelViewport.ResetControls();
             if (hk == Hotkeys.ToggleGrid) showGrid = !showGrid;
+            if (hk == Hotkeys.Undo && undoBuffer.CanUndo) undoBuffer.Undo();
+            if (hk == Hotkeys.Redo && undoBuffer.CanRedo) undoBuffer.Redo();
         }
         int selectedCam = 0;
 
@@ -435,9 +462,8 @@ namespace LancerEdit
             public Hardpoint Hardpoint;
             public RigidModelPart Parent;
             public bool Enabled;
-            public Matrix4x4? Override = null;
-            public float EditingMin;
-            public float EditingMax;
+            public bool Editing;
+
             public HardpointGizmo(Hardpoint hp, RigidModelPart parent)
             {
                 Hardpoint = hp;
@@ -537,8 +563,7 @@ namespace LancerEdit
                             Rotation = con.Construct.Rotation
                         };
                         fix.Reset();
-                        con.Construct = fix;
-                        OnDirtyPart();
+                        undoBuffer.Set("Construct", () => ref con.Construct, fix);
                     }
                     if(!(con.Construct is RevConstruct) && Theme.IconMenuItem(Icons.Rev_LightCoral, "Rev",true)) {
                         var rev = new RevConstruct()
@@ -548,8 +573,7 @@ namespace LancerEdit
                             Origin = con.Construct.Origin,
                             Rotation = con.Construct.Rotation
                         };
-                        con.Construct = rev;
-                        OnDirtyPart();
+                        undoBuffer.Set("Construct", () => ref con.Construct, rev);
                     }
                     if(!(con.Construct is PrisConstruct) && Theme.IconMenuItem(Icons.Con_Pris, "Pris",true)) {
                         var pris = new PrisConstruct()
@@ -559,8 +583,7 @@ namespace LancerEdit
                             Origin = con.Construct.Origin,
                             Rotation = con.Construct.Rotation
                         };
-                        con.Construct = pris;
-                        OnDirtyPart();
+                        undoBuffer.Set("Construct", () => ref con.Construct, pris);
                     }
                     if(!(con.Construct is SphereConstruct) && Theme.IconMenuItem(Icons.Con_Sph, "Sphere",true)) {
                         var sphere = new SphereConstruct()
@@ -570,8 +593,7 @@ namespace LancerEdit
                             Origin = con.Construct.Origin,
                             Rotation = con.Construct.Rotation
                         };
-                        con.Construct = sphere;
-                        OnDirtyPart();
+                        undoBuffer.Set("Construct", () => ref con.Construct, sphere);
                     }
                     ImGui.EndMenu();
                 }
@@ -600,7 +622,7 @@ namespace LancerEdit
             }
             if (open)
             {
-                List<Action> addActions = new List<Action>();
+                List<AddHardpoint> addActions = new List<AddHardpoint>();
                 foreach (var hp in part.Hardpoints)
                 {
                     if(doFilter) {
@@ -635,18 +657,16 @@ namespace LancerEdit
                     var action = EditDeleteHpMenu(part.Path + hp.Name);
                     if (action == ContextActions.Delete)
                     {
-                        DeleteHardpoint(hp, part.Hardpoints);
+                        DeleteHardpoint(hp, part);
                     }
                     if (action == ContextActions.Edit) hpEditing = hp;
                     if (action == ContextActions.Dup)
                     {
                         var newHp = MakeDuplicate(GetDupName(hp.Name), hp);
-                        addActions.Add(() =>
-                        {
-                            part.Hardpoints.Add(newHp);
-                            gizmos.Add(new HardpointGizmo(newHp, gz.Parent) { Enabled = true});
-                            OnDirtyHp();
-                        });
+                        addActions.Add(new AddHardpoint(
+                            newHp,
+                            new HardpointGizmo(newHp, gz.Parent) { Enabled = true },
+                            part, this));
                     }
                     if(action == ContextActions.MirrorX) {
                         var newHp = MakeDuplicate(GetDupName(hp.Name), hp);
@@ -661,12 +681,10 @@ namespace LancerEdit
                         newHp.Definition.Orientation =
                             Matrix4x4.CreateFromQuaternion(newHp.Definition.Orientation.ExtractRotation());
                         //add
-                        addActions.Add(() =>
-                        {
-                            part.Hardpoints.Add(newHp);
-                            gizmos.Add(new HardpointGizmo(newHp, gz.Parent) { Enabled = true});
-                            OnDirtyHp();
-                        });
+                        addActions.Add(new AddHardpoint(
+                            newHp,
+                            new HardpointGizmo(newHp, gz.Parent) { Enabled = true },
+                            part, this));
                     }
                     if(action == ContextActions.MirrorY) {
                         var newHp = MakeDuplicate(GetDupName(hp.Name), hp);
@@ -681,12 +699,10 @@ namespace LancerEdit
                         newHp.Definition.Orientation =
                             Matrix4x4.CreateFromQuaternion(newHp.Definition.Orientation.ExtractRotation());
                         //add
-                        addActions.Add(() =>
-                        {
-                            part.Hardpoints.Add(newHp);
-                            gizmos.Add(new HardpointGizmo(newHp, gz.Parent) { Enabled = true });
-                            OnDirtyHp();
-                        });
+                        addActions.Add(new AddHardpoint(
+                            newHp,
+                            new HardpointGizmo(newHp, gz.Parent) { Enabled = true },
+                            part, this));
                     }
                     if(action == ContextActions.MirrorZ) {
                         var newHp = MakeDuplicate(GetDupName(hp.Name), hp);
@@ -701,15 +717,13 @@ namespace LancerEdit
                         newHp.Definition.Orientation =
                             Matrix4x4.CreateFromQuaternion(newHp.Definition.Orientation.ExtractRotation());
                         //add
-                        addActions.Add(() =>
-                        {
-                            part.Hardpoints.Add(newHp);
-                            gizmos.Add(new HardpointGizmo(newHp, gz.Parent) { Enabled = true });
-                            OnDirtyHp();
-                        });
+                        addActions.Add(new AddHardpoint(
+                            newHp,
+                            new HardpointGizmo(newHp, gz.Parent) { Enabled = true },
+                            part, this));
                     }
                 }
-                foreach (var action in addActions) action();
+                foreach (var action in addActions) undoBuffer.Commit(action);
                 ImGui.TreePop();
             }
             if (act == ContextActions.ShowAll)
@@ -835,35 +849,52 @@ namespace LancerEdit
         }
 
         string surname;
-        bool surShowHull = true;
-        bool surShowHps = true;
+        bool surShowHull = false;
+        bool surShowHps = false;
         SurFile surFile = null;
 
-        void OpenSur()
+        void ReadSur(string file)
         {
-            var defaultPath = !string.IsNullOrEmpty(parent.FilePath) ? Path.GetDirectoryName(parent.FilePath) : null;
-            FileDialog.Open((file) =>
-            {
-                surname = System.IO.Path.GetFileName(file);
-#if !DEBUG
             try
             {
-#endif
-                using (var f = System.IO.File.OpenRead(file))
+                surname = Path.GetFileName(file);
+                using (var f = File.OpenRead(file))
                 {
                     surFile = SurFile.Read(f);
                 }
-#if !DEBUG
+                ProcessSur(surFile);
             }
             catch (Exception e)
             {
-                FLLog.Error("Sur", e.Message + "\n" + e.StackTrace);
+                popups.MessageBox("Sur", e.Message + "\n" + e.StackTrace);
                 surFile = null;
             }
-#endif
-                if (surFile != null) ProcessSur(surFile);
-            }, AppFilters.SurFilters, defaultPath);
         }
+
+        void OpenSur()
+        {
+            var defaultPath = !string.IsNullOrEmpty(FilePath) ? Path.GetDirectoryName(FilePath) : null;
+            FileDialog.Open(ReadSur, AppFilters.SurFilters, defaultPath);
+        }
+
+        public void ApplyToUtf()
+        {
+            if (drawable is ModelFile)
+            {
+                hprefs.Nodes[0].HardpointsToNodes(vmsModel.Root.Hardpoints);
+            }
+            else if (drawable is CmpFile)
+            {
+                foreach (var mdl in vmsModel.AllParts)
+                {
+                    var node = hprefs.Nodes.First((x) => x.Name == mdl.Path);
+                    node.HardpointsToNodes(mdl.Hardpoints);
+                }
+            }
+            WriteConstructs();
+            WriteAnimations();
+        }
+
         void HierarchyPanel()
         {
             if(!(drawable is DF.DfmFile) && !(drawable is SphFile))
@@ -879,38 +910,6 @@ namespace LancerEdit
                     ImGui.Checkbox("Show Hardpoint Hulls", ref surShowHps);
                     ImGui.Separator();
                 }
-            }
-            if (ImGuiExt.Button("Apply Hardpoints", _isDirtyHp))
-            {
-                if (drawable is ModelFile)
-                {
-                    hprefs.Nodes[0].HardpointsToNodes(vmsModel.Root.Hardpoints);
-                }
-                else if (drawable is CmpFile)
-                {
-                    foreach (var mdl in vmsModel.AllParts)
-                    {
-                        var node = hprefs.Nodes.First((x) => x.Name == mdl.Path);
-                        node.HardpointsToNodes(mdl.Hardpoints);
-                    }
-                }
-                if(_isDirtyHp)
-                {
-                    _isDirtyHp = false;
-                    parent.DirtyCountHp--;
-                }
-                popups.MessageBox("Apply Complete", "Hardpoints successfully written");
-            }
-            if (vmsModel.AllParts.Length > 1 && ImGuiExt.Button("Apply Parts", _isDirtyPart))
-            {
-                WriteConstructs();
-                if(_isDirtyPart)
-                {
-                    _isDirtyPart = false;
-                    parent.DirtyCountPart--;
-                }
-
-                popups.MessageBox("Apply Complete", "Parts successfully written");
             }
             if (ImGuiExt.ToggleButton("Filter", doFilter)) doFilter = !doFilter;
             if (doFilter) {
@@ -1134,7 +1133,7 @@ namespace LancerEdit
                 {
                     var tmpFile = Path.GetTempFileName();
                     RenderImage(tmpFile);
-                    _window.Make3dbDlg.Open(tmpFile, parent.DocumentName, true);
+                    _window.Make3dbDlg.Open(tmpFile, DocumentName, true);
                 }
             }
         }
@@ -1211,8 +1210,6 @@ namespace LancerEdit
             }
         }
 
-
-
         void PresetPanel()
         {
             if (ImGui.Button($"{Icons.Save} Save Camera Preset"))
@@ -1262,15 +1259,12 @@ namespace LancerEdit
 
         public override void DetectResources(List<MissingReference> missing, List<uint> matrefs, List<TextureReference> texrefs)
         {
-            ResourceDetection.DetectDrawable(Name, drawable, res, missing, matrefs, texrefs);
+            ResourceDetection.DetectDrawable(DocumentName, drawable, res, missing, matrefs, texrefs);
         }
 
 
         public override void Dispose()
         {
-            if (_isDirtyPart) parent.DirtyCountPart--;
-            if (_isDirtyHp) parent.DirtyCountHp--;
-
             if (surs != null)
             {
                 foreach(var s in surs)
@@ -1282,8 +1276,12 @@ namespace LancerEdit
             modelViewport.Dispose();
             imageViewport.Dispose();
             previewViewport.Dispose();
-            parent?.DereferenceDetached();
             normalVis?.Dispose();
+            if (detachedResources)
+            {
+                res.Dispose();
+            }
+            _window.Resources.RemoveResourcesForId(resIdentifier);
         }
     }
 }
