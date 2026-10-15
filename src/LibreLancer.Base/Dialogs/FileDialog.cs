@@ -139,14 +139,17 @@ public static class FileDialog
         }
     }
 
-    private unsafe struct SDLFilters : IDisposable
+    private unsafe class SDLDialogData : IDisposable
     {
         public IntPtr Pointer;
         public uint Count;
         public List<NativeBuffer> ToFree;
-        public static SDLFilters Create(FileDialogFilters? filters)
+        public SDL3.SDL_DialogFileCallback Callback;
+
+        public static SDLDialogData Create(FileDialogFilters? filters, SDL3.SDL_DialogFileCallback callback)
         {
-            var f = new SDLFilters();
+            var f = new SDLDialogData();
+            f.Callback = callback;
             f.ToFree = new List<NativeBuffer>();
             var fitems = filters?.Filters ?? [];
             var itemsBuffer = UnsafeHelpers.Allocate(sizeof(SDL3.SDL_DialogFileFilter) * (fitems.Length + 1));
@@ -186,10 +189,9 @@ public static class FileDialog
     {
         if (Sdl3Handle != IntPtr.Zero)
         {
-            using var sf = SDLFilters.Create(filters);
-            SDL3.SDL_DialogFileCallback cb = Callback;
-            var cbh = GCHandle.Alloc(cb, GCHandleType.Normal);
-            SDL3.SDL_ShowOpenFileDialog(cb,
+            var sf = SDLDialogData.Create(filters, Callback);
+            var cbh = GCHandle.Alloc(sf, GCHandleType.Normal);
+            SDL3.SDL_ShowOpenFileDialog(sf.Callback,
                 (IntPtr)cbh,
                 Sdl3Handle,
                 new Span<SDL3.SDL_DialogFileFilter>((void*)sf.Pointer, (int)sf.Count),
@@ -202,6 +204,7 @@ public static class FileDialog
             void Callback(IntPtr userdata, IntPtr fileList, int filter)
             {
                 var self = GCHandle.FromIntPtr(userdata);
+                ((SDLDialogData)self.Target!).Dispose();
                 self.Free();
 
                 if (fileList == IntPtr.Zero)
@@ -284,10 +287,9 @@ public static class FileDialog
     {
         if (Sdl3Handle != IntPtr.Zero)
         {
-            using var sf = SDLFilters.Create(filters);
-            SDL3.SDL_DialogFileCallback cb = Callback;
-            var cbh = GCHandle.Alloc(cb, GCHandleType.Normal);
-            SDL3.SDL_ShowSaveFileDialog(cb,
+            var sf = SDLDialogData.Create(filters, Callback);
+            var cbh = GCHandle.Alloc(sf, GCHandleType.Normal);
+            SDL3.SDL_ShowSaveFileDialog(sf.Callback,
                 (IntPtr)cbh,
                 Sdl3Handle,
                 new Span<SDL3.SDL_DialogFileFilter>((void*)sf.Pointer, (int)sf.Count),
@@ -298,6 +300,7 @@ public static class FileDialog
             void Callback(IntPtr userdata, IntPtr filelist, int filter)
             {
                 var self = GCHandle.FromIntPtr(userdata);
+                ((SDLDialogData)self.Target!).Dispose();
                 self.Free();
                 if (filelist == IntPtr.Zero)
                 {
@@ -338,10 +341,9 @@ public static class FileDialog
     {
         if (Sdl3Handle != IntPtr.Zero)
         {
-            using var sf = SDLFilters.Create(filters);
-            SDL3.SDL_DialogFileCallback cb = Callback;
-            var cbh = GCHandle.Alloc(cb, GCHandleType.Normal);
-            SDL3.SDL_ShowOpenFileDialog(cb,
+            var sf = SDLDialogData.Create(filters, Callback);
+            var cbh = GCHandle.Alloc(sf, GCHandleType.Normal);
+            SDL3.SDL_ShowOpenFileDialog(sf.Callback,
                 (IntPtr)cbh,
                 Sdl3Handle,
                 new Span<SDL3.SDL_DialogFileFilter>((void*)sf.Pointer, (int)sf.Count),
@@ -354,6 +356,7 @@ public static class FileDialog
             void Callback(IntPtr userdata, IntPtr filelist, int filter)
             {
                 var self = GCHandle.FromIntPtr(userdata);
+                ((SDLDialogData)self.Target!).Dispose();
                 self.Free();
                 if (filelist == IntPtr.Zero)
                 {
