@@ -50,11 +50,16 @@ namespace LibreLancer.Thn
         private Quaternion[] curveQuats = [];
         private bool curve = false;
 
+        // Abuse the Lua runtime to parse the path descriptor for us
         public MotionPath(string pathdescriptor)
+            : this((ThornTable) new ThornRunner(env, null).DoString("path = {" + pathdescriptor + "}")["path"])
         {
-            // Abuse the Lua runtime to parse the path descriptor for us
-            var rt = new ThornRunner(env, null);
-            var path = (ThornTable) (rt.DoString("path = {" + pathdescriptor + "}")["path"]);
+        }
+
+        // Makes the path from the parsed descriptor: OPEN or CLOSED, then the keys. Tests use this constructor,
+        // because the parse needs the native Lua compiler.
+        internal MotionPath(ThornTable path)
+        {
             var type = (int) path[1];
             loop = type == CLOSED;
             // detect if orientations are present

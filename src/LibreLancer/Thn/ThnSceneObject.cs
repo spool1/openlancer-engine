@@ -174,13 +174,16 @@ public class ThnPathParent(ThnSceneObject Path)
         var path = Path.Entity.Path!;
         var parent = Path.GetTransform();
         Quaternion orient = Quaternion.Identity;
+        // The path points and keys are in the frame of the path entity, as the position below.
         if (pathLookAt)
         {
-            orient = QuaternionEx.LookRotation(path.GetDirection(T, Reverse), Vector3.UnitY) * parent.Orientation;
+            // The object aims along the path direction in the scene. Its up axis stays the scene up.
+            orient = QuaternionEx.LookRotation(Vector3.Transform(path.GetDirection(T, Reverse), parent.Orientation),
+                Vector3.UnitY);
         }
         else if (path.HasOrientation)
         {
-            orient = path.GetOrientation(T) * parent.Orientation;
+            orient = parent.Orientation * path.GetOrientation(T);
         }
 
         var pos = parent.Transform(path.GetPosition(T) + Offset);
