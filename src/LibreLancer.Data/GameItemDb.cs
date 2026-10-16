@@ -894,7 +894,8 @@ public class GameItemDb
                 }
             }
         }, baseTask);
-        var goodsTask = tasks.Begin(InitGoods, equipmentTask);
+        // InitGoods reads Ships to resolve ship packages, so it must wait for InitShips.
+        var goodsTask = tasks.Begin(InitGoods, equipmentTask, shipsTask);
         var archetypesTask = tasks.Begin(InitArchetypes, loadoutsTask, debrisTask, explosionTask, fusesTask);
         var starsTask = tasks.Begin(InitStars);
         var astsTask = tasks.Begin(InitAsteroids, explosionTask);
