@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using LibreLancer.Client;
 using LibreLancer.Data;
@@ -6,7 +7,10 @@ using LibreLancer.Data.GameData;
 using LibreLancer.Data.GameData.World;
 using LibreLancer.Data.Schema.GCS;
 using LibreLancer.Data.Schema.MBases;
+using LibreLancer.Data.Schema.Missions;
 using LibreLancer.Data.Schema.Save;
+using LibreLancer.Thn;
+using LibreLancer.Thorn;
 using LibreLancer.World;
 using Xunit;
 
@@ -105,6 +109,135 @@ public class BaseNpcPopulationTests
 
         Assert.Contains(0, counts);
         Assert.Contains(3, counts);
+    }
+
+    [Fact]
+    public void ReservedSpotsAreNeverGivenToAmbientNpcs()
+    {
+        var fixedNpc = Fixture("bartender", "Zs/NPC/Bartender/01/A/Stand", "bartender");
+        var ambient = Enumerable.Range(0, 10).Select(i => new BaseNpc($"ambient{i}"));
+        var room = Room(7, [fixedNpc, ..ambient]);
+        var spots = new[]
+        {
+            new RoomNpcSpot("Zs/NPC/Bartender/01/A/Stand", false, Posture.Stand),
+            new RoomNpcSpot("Zg/NPC/mTable3/01/A/SitLow", true, Posture.SitLow),
+            new RoomNpcSpot("Zg/NPC/mFloor3/01/A/Stand", true, Posture.Stand),
+            new RoomNpcSpot("Zg/NPC/mFloor2/01/A/Stand", true, Posture.Stand)
+        };
+        // The first spot has a different letter case than its marker, as in the s003x RTC INI.
+        string[] reserved = ["Zg/NPC/mTable3/01/A/Sitlow", "Zg/NPC/mFloor3/01/A/Stand"];
+
+        var freeSpotUsed = false;
+        for (var seed = 0; seed < 200; seed++)
+        {
+            var result = BaseNpcPopulation.Select(room, spots, (_, _) => null, new Random(seed), reserved);
+
+            Assert.Contains(result, x => x.Fixed && x.Npc == fixedNpc && x.SceneSpot == "Zs/NPC/Bartender/01/A/Stand");
+            Assert.DoesNotContain(result, x => reserved.Contains(x.SceneSpot, StringComparer.OrdinalIgnoreCase));
+            freeSpotUsed |= result.Any(x => x.SceneSpot == "Zg/NPC/mFloor2/01/A/Stand");
+        }
+
+        Assert.True(freeSpotUsed);
+    }
+
+    [Fact]
+    public void FindFixtureActorsBindsTheRole()
+    {
+        var bartender = Fixture("li0101_fix_bartender", "Zs/NPC/Bartender/01/A/Stand", "bartender");
+        var dealer = Fixture("li0101_fix_weaponsdealer", "Zs/NPC/Equipment/01/A/Stand", "Equipment");
+        var trader = Fixture("li0101_fix_trader", "Zs/NPC/Trader/01/A/Stand", "trader");
+        var room = Room(0, bartender, new BaseNpc("ambient"), dealer, trader);
+        var script = Characters(
+            // Only the actor binds. The name and the template of this entity are the role of the trader.
+            Character("trader", "trader", "story_trader"),
+            Character("Char_bartender", "li_manhattan_bartender", "story_bartender"),
+            Character("Fixture_bartender", "benchmark_male", "BARTENDER"),
+            Character("Char_equipment_dealer", "li_manhattan_weaponstrader", "equipment"),
+            Character("Fixture_equipment_dealer", "li_manhattan_weaponstrader", "equipment"));
+
+        var bound = BaseNpcPopulation.FindFixtureActors(room, script);
+
+        // The match ignores the letter case. The first DEFORMABLE with the role is bound, and the second one stays
+        // free. The trader has no DEFORMABLE with its role.
+        Assert.Equal(
+            new[] { (bartender, "Fixture_bartender"), (dealer, "Char_equipment_dealer") },
+            bound.Select(x => (x.Npc, x.Entity.Name)));
+    }
+
+    [Fact]
+    public void AnRtcCharWithASpotBindsTheFixtureAtThatSpotFirst()
+    {
+        var first = Fixture("first", "Zs/NPC/Bartender/01/A/Stand", "bartender");
+        var second = Fixture("second", "Zs/NPC/Bartender/02/A/Stand", "bartender");
+        var room = Room(0, first, second);
+        var script = Characters(Character("Char_li_bartender_Fixture", "li_bartender_1", "bartender"));
+        // An actor and a spot without an npc, as in the s003x RTC INI. The letter case is different.
+        var key = new StoryChar { Actor = "Bartender", Spot = "zs/npc/bartender/02/a/stand" };
+        // A [Char] with an npc is a story character. Its spot does not bind a fixture.
+        var story = new StoryChar { Npc = "manhtn_bar", Actor = "bartender", Spot = "Zs/NPC/Bartender/02/A/Stand" };
+
+        Assert.Same(second, Assert.Single(BaseNpcPopulation.FindFixtureActors(room, script, [key])).Npc);
+        Assert.Same(first, Assert.Single(BaseNpcPopulation.FindFixtureActors(room, script, [story])).Npc);
+        Assert.Same(first, Assert.Single(BaseNpcPopulation.FindFixtureActors(room, script)).Npc);
+    }
+
+    [Fact]
+    public void AFixtureIsBoundOneTimeAtMost()
+    {
+        var bartender = Fixture("bartender", "Zs/NPC/Bartender/01/A/Stand", "bartender");
+        var room = Room(0, bartender);
+        var script = Characters(
+            Character("Char_li_bartender_Fixture", "li_bartender_1", "bartender"),
+            Character("Fixture_bartender", "li_bartender_1", "bartender"));
+        var key = new StoryChar { Actor = "bartender", Spot = "Zs/NPC/Bartender/01/A/Stand" };
+
+        // The [Char] key binds the first DEFORMABLE. The role match then does not bind the same fixture to the
+        // second DEFORMABLE, so the second one stays free.
+        var bound = Assert.Single(BaseNpcPopulation.FindFixtureActors(room, script, [key]));
+        Assert.Equal((bartender, "Char_li_bartender_Fixture"), (bound.Npc, bound.Entity.Name));
+    }
+
+    [Fact]
+    public void ABoundFixtureIsNotPlacedAtItsSpot()
+    {
+        var bartender = Fixture("bartender", "Zs/NPC/Bartender/01/A/Stand", "bartender");
+        var trader = Fixture("trader", "Zs/NPC/Trader/01/A/Stand", "trader");
+        var room = Room(1, bartender, trader, new BaseNpc("ambient"));
+        var spots = new[]
+        {
+            new RoomNpcSpot("Zs/NPC/Bartender/01/A/Stand", false, Posture.Stand),
+            new RoomNpcSpot("Zs/NPC/Trader/01/A/Stand", false, Posture.Stand),
+            new RoomNpcSpot("Zg/NPC/mFloor2/01/A/Stand", true, Posture.Stand)
+        };
+
+        var result = BaseNpcPopulation.Select(room, spots, (_, _) => null, new Random(0),
+            boundNpcs: new HashSet<BaseNpc> { bartender });
+
+        // The bartender plays a character of the cutscene, and nobody stands at his spot. The trader is not bound,
+        // so he stays at his spot.
+        Assert.DoesNotContain(result, x => x.Npc == bartender || x.SceneSpot == "Zs/NPC/Bartender/01/A/Stand");
+        Assert.Contains(result, x => x.Fixed && x.Npc == trader);
+    }
+
+    [Fact]
+    public void AmbientNpcsOnSpotsFindsAmbientNpcsButNotFixtures()
+    {
+        var bartender = Fixture("bartender", "Zs/NPC/Bartender/01/A/Stand", "bartender");
+        var onReserve = new BaseNpc("on_reserve");
+        BaseNpcAssignment[] assignments =
+        [
+            new(bartender, new RoomNpcSpot("Zs/NPC/Bartender/01/A/Stand", false, Posture.Stand), null, true, null),
+            new(onReserve, new RoomNpcSpot("Zg/NPC/mTable3/01/A/SitLow", true, Posture.SitLow), null, false, null),
+            new(new BaseNpc("free"), new RoomNpcSpot("Zg/NPC/mFloor2/01/A/Stand", true, Posture.Stand), null, false,
+                null)
+        ];
+        // The first spot has a different letter case than its marker. The fixture keeps its spot, also when an RTC
+        // reserves it.
+        string[] reserved = ["Zg/NPC/mTable3/01/A/Sitlow", "Zs/NPC/Bartender/01/A/Stand", "Zg/NPC/mFloor3/01/A/Stand"];
+
+        var found = BaseNpcPopulation.AmbientNpcsOnSpots(assignments, reserved);
+
+        Assert.Same(onReserve, Assert.Single(found).Npc);
     }
 
     [Fact]
@@ -289,6 +422,26 @@ public class BaseNpcPopulationTests
         ReadCallback = null!,
         VFS = null!
     };
+
+    private static BaseNpc Fixture(string nickname, string spot, string role) => new(nickname)
+    {
+        Placement = new BaseNpcPlacement(spot, Script("fixed"), role)
+    };
+
+    private static ThnScript Characters(params ThnEntity[] entities)
+    {
+        var script = new ThnScript();
+        foreach (var entity in entities)
+            script.Entities.Add(entity.Name, entity);
+        return script;
+    }
+
+    private static ThnEntity Character(string name, string template, string actor) =>
+        new(new ThornTable { ["entity_name"] = name, ["type"] = EntityTypes.Deformable })
+        {
+            Template = template,
+            Actor = actor
+        };
 
     private static BaseNpcAssignment[] FixedAssignments(params BaseNpc[] npcs)
     {

@@ -88,7 +88,7 @@ namespace LibreLancer
         private double locationAnnouncementDelay = -1;
         private readonly Dictionary<string, ThnSceneObject> baseNpcObjects =
             new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, BaseNpc> baseNpcData =
+        private readonly Dictionary<string, BaseNpcAssignment> baseNpcData =
             new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, BaseNpcRumor?> baseNpcRumors =
             new(StringComparer.OrdinalIgnoreCase);
@@ -737,8 +737,7 @@ namespace LibreLancer
                     return true;
                 }
 
-                if (!n[0].Equals(currentBase.Nickname, StringComparison.OrdinalIgnoreCase) ||
-                    !n[1].Equals(currentRoom.Nickname, StringComparison.OrdinalIgnoreCase))
+                if (!IsInThisRoom(ct))
                 {
                     continue;
                 }
@@ -763,6 +762,19 @@ namespace LibreLancer
 
             return false;
         }
+
+        private bool IsInThisRoom(StoryCutsceneIni ct)
+        {
+            var location = ct.Encounters[0].Location!;
+            return location[0].Equals(currentBase.Nickname, StringComparison.OrdinalIgnoreCase) &&
+                   location[1].Equals(currentRoom.Nickname, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // The spots that the active RTCs of this room reserve for their characters.
+        private IEnumerable<string> ReservedSpots() => session.ActiveCutscenes
+            .Where(ct => ct.Encounters.Count == 1 && IsInThisRoom(ct))
+            .SelectMany(ct => ct.Reserves)
+            .SelectMany(reserve => reserve.Spot);
 
         private void NotifyAutoplayCharacterSelect(StoryCutsceneIni cutscene)
         {
@@ -1099,7 +1111,7 @@ namespace LibreLancer
             foreach (var entry in baseNpcObjects)
             {
                 var screen = ScreenPosition(entry.Value.GetTransform().Position);
-                if (!baseNpcData.TryGetValue(entry.Key, out var npc))
+                if (!baseNpcData.TryGetValue(entry.Key, out var assignment))
                     continue;
 
                 var dx = mX - screen.X;
@@ -1108,7 +1120,7 @@ namespace LibreLancer
                 if (distance < closestDistance)
                 {
                     closestDistance = distance;
-                    closest = npc;
+                    closest = assignment.Npc;
                 }
             }
 
@@ -1142,6 +1154,9 @@ namespace LibreLancer
         private void ProcessNextCutscene()
         {
             var ct = toPlay.Dequeue();
+            // The RTC can become active after the room was built, for example when a mission trigger adds it as the
+            // player enters the room. Its story NPCs go to its reserved spots, so the ambient NPCs leave them first.
+            RemoveAmbientNpcs(ct.Reserves.SelectMany(reserve => reserve.Spot));
             int position = 0;
             int i = 0;
 
@@ -1260,7 +1275,8 @@ namespace LibreLancer
             return objects.OfType<IEnumerable<ThnScript?>>().SelectMany(obj => obj).OfType<ThnScript>();
         }
 
-        private void PopulateRoomNpcs()
+        // A bound NPC plays an actor of the cutscene, so it does not get its room spot.
+        private void PopulateRoomNpcs(IReadOnlySet<BaseNpc> boundNpcs)
         {
             baseNpcObjects.Clear();
             baseNpcData.Clear();
@@ -1286,7 +1302,9 @@ namespace LibreLancer
                 currentRoom,
                 spots,
                 Game.GameData.Items,
-                random);
+                random,
+                ReservedSpots(),
+                boundNpcs);
 
             foreach (var assignment in assignments)
             {
@@ -1315,7 +1333,7 @@ namespace LibreLancer
                         assignment.FidgetScript);
 
                     baseNpcObjects[assignment.Npc.Nickname] = npcObject;
-                    baseNpcData[assignment.Npc.Nickname] = assignment.Npc;
+                    baseNpcData[assignment.Npc.Nickname] = assignment;
                     baseNpcRumors[assignment.Npc.Nickname] = assignment.SelectedRumor;
                 }
                 catch (Exception ex)
@@ -1333,6 +1351,38 @@ namespace LibreLancer
                          random))
             {
                 baseNpcBribes[entry.Key] = entry.Value;
+            }
+        }
+
+        // Removes the ambient NPCs that stand on these spots from the scene.
+        private void RemoveAmbientNpcs(IEnumerable<string> spots)
+        {
+            foreach (var assignment in BaseNpcPopulation.AmbientNpcsOnSpots(baseNpcData.Values, spots))
+            {
+                var nickname = assignment.Npc.Nickname;
+                scene!.RemoveObject(baseNpcObjects[nickname]);
+                baseNpcObjects.Remove(nickname);
+                baseNpcData.Remove(nickname);
+                baseNpcRumors.Remove(nickname);
+                baseNpcBribes.Remove(nickname);
+            }
+        }
+
+        // A room fixture that plays a THN entity. When the NPC cannot be made, the room places it at its spot.
+        private ThnSceneObject? CreateFixtureActor(BaseNpc npc, ThnEntity entity)
+        {
+            try
+            {
+                return ThnRoomHandler.CreateBoundNpc(
+                    Game.ResourceManager,
+                    Game.GameData.GetCharacterAnimations(),
+                    npc,
+                    entity);
+            }
+            catch (Exception ex)
+            {
+                FLLog.Error("NPC", ex.Message);
+                return null;
             }
         }
 
@@ -1373,8 +1423,23 @@ namespace LibreLancer
             waitingForFinish = sc;
             if (hasLandingAnimation && state == ScriptState.Enter && sc != null)
                 locationAnnouncementDelay = Math.Max(0, sc.Duration - 8);
-            scene!.BeginScene(Scripts(sceneScripts, [sc]));
-            PopulateRoomNpcs();
+            var boundActors = new List<ThnSceneObject>();
+            var boundNpcs = new HashSet<BaseNpc>();
+            if (sc != null)
+            {
+                var chars = state == ScriptState.Cutscene ? currentCutscene?.Chars : null;
+                foreach (var (npc, entity) in BaseNpcPopulation.FindFixtureActors(currentRoom, sc, chars))
+                {
+                    var actor = CreateFixtureActor(npc, entity);
+                    if (actor == null)
+                        continue;
+                    boundActors.Add(actor);
+                    boundNpcs.Add(npc);
+                }
+            }
+
+            scene!.BeginScene(Scripts(sceneScripts, [sc]), boundActors);
+            PopulateRoomNpcs(boundNpcs);
             string[] ships = [];
 
             if (session.Ships != null)

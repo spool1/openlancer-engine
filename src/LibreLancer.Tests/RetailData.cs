@@ -53,6 +53,21 @@ public class RetailData
     // Reads a file in the DATA folder, for example a THN script.
     public byte[] ReadDataFile(string path) => VFS.ReadAllBytes(ini.DataPath + path);
 
+    // The VFS path of a file in the DATA folder, for an INI parser that opens the file itself.
+    public string DataFilePath(string path) => ini.DataPath + path;
+
+    // Loads the models of the retail data, for code that gets a resource manager.
+    public ResourceManager Resources => resources;
+
+    // A body part as GameItemDb makes it. Its model loads through Resources.
+    public Data.GameData.Bodypart? GameBodypart(string nickname)
+    {
+        var part = bodyparts.FindBodypart(nickname);
+        return part?.Mesh == null
+            ? null
+            : new Data.GameData.Bodypart { Nickname = part.Nickname, Path = ini.DataPath + part.Mesh, Sex = part.Sex };
+    }
+
     // Makes the skeleton of a costume, as ThnScriptInstance does for a DEFORMABLE entity.
     public DfmSkeletonManager? LoadCostume(string nickname)
     {

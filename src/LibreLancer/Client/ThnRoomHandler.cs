@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Text.RegularExpressions;
 using LibreLancer.Data.GameData;
 using LibreLancer.Data.GameData.World;
@@ -108,9 +109,59 @@ public static class ThnRoomHandler
         Accessory? accessory,
         ResolvedThn? fidgetScript)
     {
+        var spotObj = scene!.GetObject(spot)!;
+        var thnObj = CreateNpc(resources, charAnimations, name, voice, head, body, rightHand, leftHand, accessory,
+            new Transform3D(spotObj.Translate with { Y = 0 }, spotObj.Rotate), 0);
+        scene.AddObject(thnObj);
+        if (fidgetScript != null)
+        {
+            scene.FidgetScript(fidgetScript.LoadScript(), name);
+        }
+        return thnObj;
+    }
+
+    // Makes a room NPC that plays a THN entity, for Cutscene.BeginScene. It has the costume and the voice of the room
+    // NPC, and the name, the start pose and the floor height of the entity. It has no fidget. An NPC without a body
+    // gives null.
+    public static ThnSceneObject? CreateBoundNpc(
+        ResourceManager resources,
+        AnmFile charAnimations,
+        BaseNpc npc,
+        ThnEntity entity)
+    {
+        var appearance = BaseNpcPopulation.ResolveAppearance(npc);
+        if (!appearance.HasBody)
+        {
+            return null;
+        }
+
+        var actor = CreateNpc(resources, charAnimations, entity.Name, npc.Voice, appearance.Head, appearance.Body,
+            appearance.RightHand, appearance.LeftHand, appearance.Accessory,
+            new Transform3D(entity.Position ?? Vector3.Zero, entity.Rotation), entity.FloorHeight);
+        actor.Actor = entity.Actor;
+        actor.Entity = entity;
+        return actor;
+    }
+
+    private static ThnSceneObject CreateNpc(
+        ResourceManager resources,
+        AnmFile charAnimations,
+        string name,
+        string? voice,
+        Bodypart? head,
+        Bodypart? body,
+        Bodypart? rightHand,
+        Bodypart? leftHand,
+        Accessory? accessory,
+        Transform3D start,
+        float floorHeight)
+    {
         var skel = new DfmSkeletonManager(
             body?.LoadModel(resources)!, head?.LoadModel(resources),
-            leftHand?.LoadModel(resources), rightHand?.LoadModel(resources));
+            leftHand?.LoadModel(resources), rightHand?.LoadModel(resources))
+        {
+            FloorHeight = floorHeight
+        };
         var obj = new GameObject
         {
             Nickname = name
@@ -124,22 +175,15 @@ public static class ThnRoomHandler
         var animation = new AnimationComponent(obj, charAnimations);
         obj.AnimationComponent = animation;
         obj.AddComponent(animation);
-        var spotObj = scene!.GetObject(spot)!;
-        obj.SetLocalTransform(new Transform3D(spotObj.Translate with { Y = 0 }, spotObj.Rotate));
-        var thnObj = new ThnSceneObject
+        obj.SetLocalTransform(start);
+        return new ThnSceneObject
         {
             Name = name,
-            Translate = spotObj.Translate with { Y = 0 },
-            Rotate = spotObj.Rotate,
+            Translate = start.Position,
+            Rotate = start.Orientation,
             Object = obj,
             Voice = voice
         };
-        scene.AddObject(thnObj);
-        if (fidgetScript != null)
-        {
-            scene.FidgetScript(fidgetScript.LoadScript(), name);
-        }
-        return thnObj;
     }
 
 }

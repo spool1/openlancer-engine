@@ -160,10 +160,16 @@ public class Cutscene : IDisposable
 
     public void BeginScene(params ThnScript[] scene) => BeginScene((IEnumerable<ThnScript>)scene);
 
-    public void BeginScene(IEnumerable<ThnScript> scene)
+    public void BeginScene(IEnumerable<ThnScript> scene) => BeginScene(scene, []);
+
+    /// <summary>
+    /// Starts the scripts with bound actors. A bound actor is an object made outside the scripts, for example a
+    /// room NPC, that plays the THN entity of the same name. The scripts do not make that entity.
+    /// </summary>
+    public void BeginScene(IEnumerable<ThnScript> scene, IReadOnlyList<ThnSceneObject> boundActors)
     {
         var scripts = scene.ToArray();
-        SceneSetup(scripts);
+        SceneSetup(scripts, boundActors: boundActors);
     }
 
     /// <summary>
@@ -238,7 +244,8 @@ public class Cutscene : IDisposable
     private ThnScriptInstance[] SceneSetup(
         ThnScript[] scripts,
         bool resetObjects = true,
-        bool spawnLayerObjects = false)
+        bool spawnLayerObjects = false,
+        IReadOnlyList<ThnSceneObject>? boundActors = null)
     {
         if (resetObjects)
         {
@@ -273,6 +280,13 @@ public class Cutscene : IDisposable
         {
             var inst = new ThnScriptInstance(this, scriptContext.SetScript);
             inst.ConstructEntities(sceneObjects, spawnObjects);
+        }
+
+        // Add the bound actors before the scripts make their entities. ConstructEntities skips an entity whose name
+        // is in use, so the events of that entity move the bound actor.
+        foreach (var actor in boundActors ?? [])
+        {
+            AddObject(actor);
         }
 
         if (resetObjects)

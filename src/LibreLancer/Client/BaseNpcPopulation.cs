@@ -6,6 +6,8 @@ using LibreLancer.Data.GameData;
 using LibreLancer.Data.GameData.World;
 using LibreLancer.Data.Schema.GCS;
 using LibreLancer.Data.Schema;
+using LibreLancer.Data.Schema.Missions;
+using LibreLancer.Thn;
 using LibreLancer.Utf.Dfm;
 using LibreLancer.World;
 
@@ -169,20 +171,26 @@ public static class BaseNpcPopulation
         BaseRoom room,
         IReadOnlyList<RoomNpcSpot> spots,
         GameItemDb items,
-        Random random)
+        Random random,
+        IEnumerable<string>? reservedSpots = null,
+        IReadOnlySet<BaseNpc>? boundNpcs = null)
     {
         return Select(
             room,
             spots,
             (gender, posture) => items.GetGCSScripts("fidget", gender, posture).FirstOrDefault(),
-            random);
+            random,
+            reservedSpots,
+            boundNpcs);
     }
 
     public static BaseNpcAssignment[] Select(
         BaseRoom room,
         IReadOnlyList<RoomNpcSpot> spots,
         Func<FLGender, Posture, ResolvedThn?> fidgetResolver,
-        Random random)
+        Random random,
+        IEnumerable<string>? reservedSpots = null,
+        IReadOnlySet<BaseNpc>? boundNpcs = null)
     {
         var assignments = new List<BaseNpcAssignment>();
         var fixedNpcs = new Dictionary<string, BaseNpc>(StringComparer.OrdinalIgnoreCase);
@@ -202,6 +210,10 @@ public static class BaseNpcPopulation
             if (!fixedNpcs.TryGetValue(spot.Nickname, out var npc) || npc.Placement == null)
                 continue;
 
+            // A fixture that plays a character of the cutscene (see FindFixtureActors) is not at its spot.
+            if (boundNpcs?.Contains(npc) == true)
+                continue;
+
             assignments.Add(new BaseNpcAssignment(
                 npc,
                 spot,
@@ -209,6 +221,11 @@ public static class BaseNpcPopulation
                 true,
                 SelectRandomRumor(npc, random)));
         }
+
+        // Ambient NPCs do not get the spots that the RTCs of the room reserve ([Reserve] in the RTC INI).
+        // The comparison ignores the letter case, because retail writes both "Sitlow" and "SitLow".
+        if (reservedSpots != null)
+            usedSpots.UnionWith(reservedSpots);
 
         var dynamicSpots = spots
             .Where(x => x.Dynamic && !usedSpots.Contains(x.Nickname))
@@ -241,6 +258,56 @@ public static class BaseNpcPopulation
         }
 
         return assignments.ToArray();
+    }
+
+    // Finds the ambient NPCs that stand on one of the spots. A fixture keeps its spot, as in Select. The comparison
+    // ignores the letter case, as in Select.
+    public static BaseNpcAssignment[] AmbientNpcsOnSpots(
+        IEnumerable<BaseNpcAssignment> assignments,
+        IEnumerable<string> spots)
+    {
+        var spotSet = new HashSet<string>(spots, StringComparer.OrdinalIgnoreCase);
+        return assignments.Where(x => !x.Fixed && spotSet.Contains(x.SceneSpot)).ToArray();
+    }
+
+    // Finds the room fixtures that play characters of a cutscene. The rule comes from the retail data. The retail
+    // binary does not confirm it. A DEFORMABLE whose actor is the role of a fixture (the 4th field of the mbases
+    // fixture: bartender, trader, Equipment or ShipDealer) is that room NPC. The data shows this in three ways: some
+    // of these DEFORMABLEs have a placeholder template (benchmark_male in s037a), many are offscreen from the start,
+    // and s003x and s009b move theirs back to the stand spot of the room fixture at the end. First, a [Char] of the
+    // RTC INI with an actor and a spot, but no npc, binds the fixture at that spot. Then each fixture binds the first
+    // free DEFORMABLE with its role. An NPC or an entity is bound one time at most. The comparisons ignore the letter
+    // case.
+    public static IReadOnlyList<(BaseNpc Npc, ThnEntity Entity)> FindFixtureActors(
+        BaseRoom room,
+        ThnScript script,
+        IEnumerable<StoryChar>? chars = null)
+    {
+        var result = new List<(BaseNpc Npc, ThnEntity Entity)>();
+        var free = script.Entities.Values.Where(x => x.Type == EntityTypes.Deformable).ToList();
+
+        void Bind(BaseNpc? npc, string? actor)
+        {
+            if (npc == null || string.IsNullOrEmpty(actor) || result.Exists(x => x.Npc == npc))
+                return;
+            var entity = free.Find(x => string.Equals(x.Actor, actor, StringComparison.OrdinalIgnoreCase));
+            if (entity == null)
+                return;
+            free.Remove(entity);
+            result.Add((npc, entity));
+        }
+
+        foreach (var character in chars ?? [])
+        {
+            if (string.IsNullOrEmpty(character.Npc) && !string.IsNullOrEmpty(character.Spot))
+                Bind(room.Npcs.Find(x => string.Equals(x.Placement?.Spot, character.Spot,
+                    StringComparison.OrdinalIgnoreCase)), character.Actor);
+        }
+
+        foreach (var npc in room.Npcs)
+            Bind(npc, npc.Placement?.Action);
+
+        return result;
     }
 
     private static void Shuffle<T>(T[] values, Random random)
