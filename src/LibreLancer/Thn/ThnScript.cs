@@ -176,7 +176,7 @@ namespace LibreLancer.Thn
                 case EventTypes.StartMotion:
                     return new StartMotionEvent(table);
                 case EventTypes.StartIK:
-                    return new StartIKEvent(table);
+                    return new StartIKEvent(table, source);
                 case EventTypes.StartSubScene:
                     return new StartSubSceneEvent(table);
                 case EventTypes.StartPSys:

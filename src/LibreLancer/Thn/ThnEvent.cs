@@ -100,6 +100,58 @@ namespace LibreLancer.Thn
             return h;
         }
 
+        // ROOT ignores the part name. A part or hardpoint that is not found gives the root of the object.
+        protected static ThnObjectParent GetAttachParent(ThnSceneObject obj, TargetTypes type, string? part)
+        {
+            IRenderHardpoint? hardpoint = null;
+            RigidModelPart? modelPart = null;
+            switch (type)
+            {
+                case TargetTypes.Hardpoint when !string.IsNullOrEmpty(part):
+                {
+                    if (obj.Object == null)
+                    {
+                        FLLog.Error("Thn", "Could not get hardpoints on " + obj.Name);
+                    }
+                    else
+                    {
+                        hardpoint = GetHardpoint(obj.Object, part);
+                        if (hardpoint == null)
+                        {
+                            FLLog.Error("Thn", $"Could not find hardpoint {part} on " + obj.Name);
+                        }
+                    }
+
+                    break;
+                }
+
+                case TargetTypes.Part when !string.IsNullOrEmpty(part):
+                {
+                    // A character has no rigid model. Its parts are the bones of the skeleton.
+                    if (obj.Object?.RenderComponent is CharacterRenderer ch)
+                    {
+                        hardpoint = ch.Skeleton.GetBone(part);
+                        if (hardpoint == null)
+                        {
+                            FLLog.Error("Thn", $"Could not find bone {part} on " + obj.Name);
+                        }
+                    }
+                    else if (obj.Object?.Model?.RigidModel.Parts == null)
+                    {
+                        FLLog.Error("Thn", "Could not get parts on " + obj.Name);
+                    }
+                    else if (!obj.Object.Model.RigidModel.Parts.TryGetPart(part, out modelPart))
+                    {
+                        FLLog.Error("Thn", $"Could not find part {part} on " + obj.Name);
+                    }
+
+                    break;
+                }
+            }
+
+            return new ThnObjectParent(obj, hardpoint, modelPart);
+        }
+
     }
 }
 

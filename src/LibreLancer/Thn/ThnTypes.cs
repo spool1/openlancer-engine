@@ -20,6 +20,7 @@ namespace LibreLancer.Thn
             -Vector3.UnitY,
             -Vector3.UnitZ
         ];
+        public static Vector3 AxisVector(ThnAxis axis) => axisTable[(int)axis];
         public static ThnAxis ConvertAxis(object o, string source)
         {
             if (o is ThornTable tb)

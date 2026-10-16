@@ -4,9 +4,7 @@
 
 using System;
 using System.Numerics;
-using LibreLancer.Render;
 using LibreLancer.Thorn;
-using LibreLancer.World;
 
 namespace LibreLancer.Thn.Events
 {
@@ -77,43 +75,7 @@ namespace LibreLancer.Thn.Events
             }
 
             // Attach GameObjects to eachother
-            IRenderHardpoint? hardpoint = null;
-            RigidModelPart? part = null;
-            switch (TargetType)
-            {
-                case TargetTypes.Hardpoint when !string.IsNullOrEmpty(TargetPart):
-                {
-                    if (objB.Object == null)
-                    {
-                        FLLog.Error("Thn", "Could not get hardpoints on " + objB.Name);
-                    }
-                    else
-                    {
-                        hardpoint = GetHardpoint(objB.Object, TargetPart);
-                    }
-
-                    break;
-                }
-
-                case TargetTypes.Part when !string.IsNullOrEmpty(TargetPart):
-                {
-                    if (objB.Object?.Model?.RigidModel.Parts == null)
-                    {
-                        FLLog.Error("Thn", "Could not get parts on " + objB.Name);
-                    }
-                    else
-                    {
-                        if (!objB.Object.Model.RigidModel.Parts.TryGetPart(TargetPart, out part))
-                        {
-                            FLLog.Error("Thn", $"Could not find part {TargetPart} on " + objB.Name);
-                        }
-                    }
-
-                    break;
-                }
-            }
-
-            var tgt = new ThnObjectParent(objB, hardpoint, part);
+            var tgt = GetAttachParent(objB, TargetType, TargetPart);
             Quaternion lastRotate = Quaternion.Identity;
             if ((Flags & AttachFlags.Orientation) == AttachFlags.Orientation &&
                 (Flags & AttachFlags.OrientationRelative) == AttachFlags.OrientationRelative)

@@ -20,3 +20,9 @@ public class DfmHardpoint : IRenderHardpoint
                                     (Bone?.LocalTransform ?? Transform3D.Identity) *
                                     (Connection?.Transform ?? Transform3D.Identity);
 }
+
+// A bone as an attach target. The transform is in the space of the body model.
+public sealed class DfmBoneHardpoint(DfmSkeletonManager.Connection? connection, BoneInstance bone) : IRenderHardpoint
+{
+    public Transform3D Transform => bone.LocalTransform * (connection?.Transform ?? Transform3D.Identity);
+}

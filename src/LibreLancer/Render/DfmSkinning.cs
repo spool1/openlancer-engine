@@ -56,6 +56,10 @@ namespace LibreLancer.Render
 
                 inst.OriginalRotation = Quaternion.CreateFromRotationMatrix(con.Rotation);
                 inst.Origin = con.Origin;
+                if (con is DfmSphere sphere)
+                {
+                    SetIKLimits(inst, sphere);
+                }
             }
 
             foreach (var b in Bones.Values)
@@ -65,6 +69,29 @@ namespace LibreLancer.Render
                     starts.Add(b);
                 }
             }
+        }
+
+        // IK does not limit a joint with six zero limits. All retail body and hand joints are like this.
+        // IK also ignores limits that are not valid, for example the Body_Head limits of br_darcy_body.
+        private static void SetIKLimits(BoneInstance bone, DfmSphere sphere)
+        {
+            var min = new Vector3(sphere.Min1, sphere.Min2, sphere.Min3);
+            var max = new Vector3(sphere.Max1, sphere.Max2, sphere.Max3);
+            if (min == Vector3.Zero && max == Vector3.Zero)
+            {
+                return;
+            }
+
+            // Each range must contain 0. This also rejects a minimum that is more than its maximum.
+            if (min.X > 0 || min.Y > 0 || min.Z > 0 || max.X < 0 || max.Y < 0 || max.Z < 0)
+            {
+                FLLog.Warning("Dfm", $"The joint limits of {bone.Name} are not valid. IK does not limit this joint.");
+                return;
+            }
+
+            bone.HasIKLimits = true;
+            bone.IKMin = min;
+            bone.IKMax = max;
         }
 
         public IEnumerable<(HardpointDefinition def, BoneInstance? bone)> GetHardpoints()
@@ -106,7 +133,7 @@ namespace LibreLancer.Render
             return false;
         }
 
-        private void UpdateBounds()
+        internal void UpdateBounds()
         {
             var bounds = new BoundingBox();
             var set = false;

@@ -262,6 +262,7 @@ namespace LibreLancer.World.Components
             if ((GameObject?)Parent != null && Parent.RenderComponent is CharacterRenderer characterRenderer)
             {
                 characterRenderer.Skeleton.UpdateScripts(time);
+                characterRenderer.Skeleton.ApplyIK(Parent.WorldTransform);
                 return;
             }
 

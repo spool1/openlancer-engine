@@ -191,25 +191,33 @@ public class ThnObjectParent(ThnSceneObject obj, IRenderHardpoint? hardpoint, Ri
 {
     public override Transform3D GetTransform(bool pathLookAt)
     {
-        var tr = obj.GetTransform();
         if (part != null)
         {
-            if (obj.HpMount != null)
-            {
-                tr = obj.HpMount.Transform.Inverse() * tr;
-            }
-            return part.LocalTransform * tr;
+            return part.LocalTransform * GetModelTransform();
         }
 
         if (hardpoint != null)
         {
-            if (obj.HpMount != null)
-            {
-                tr = obj.HpMount.Transform.Inverse() * tr;
-            }
-            return hardpoint.Transform * tr;
+            return hardpoint.Transform * GetModelTransform();
         }
 
+        return obj.GetTransform();
+    }
+
+    // The transform that UpdateEngineObjects gives to the model. A character stands at its floor height plus
+    // the root height of its animation.
+    private Transform3D GetModelTransform()
+    {
+        var tr = obj.GetTransform();
+        if (!obj.PosFromObject && obj.Object?.RenderComponent is CharacterRenderer ch)
+        {
+            tr.Position = tr.Position with { Y = ch.Skeleton.FloorHeight + ch.Skeleton.RootHeight };
+        }
+
+        if (obj.HpMount != null)
+        {
+            tr = obj.HpMount.Transform.Inverse() * tr;
+        }
         return tr;
     }
 }

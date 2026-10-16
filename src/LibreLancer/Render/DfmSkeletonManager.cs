@@ -4,6 +4,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Numerics;
 using LibreLancer;
@@ -426,6 +427,35 @@ namespace LibreLancer.Render
             return false;
         }
 
+        public IRenderHardpoint? GetBone(string name) =>
+            FindBone(name, out var bone, out var connection) ? new DfmBoneHardpoint(connection, bone) : null;
+
+        // Finds a bone of the body, the head or a hand. The body comes first, because every DFM has a "Root" bone.
+        // The connection is null for a body bone.
+        private bool FindBone(string name, [MaybeNullWhen(false)] out BoneInstance bone, out Connection? connection)
+        {
+            connection = null;
+            if (BodySkinning.Bones.TryGetValue(name, out bone))
+            {
+                return true;
+            }
+
+            connection = HeadConnection;
+            if (HeadSkinning != null && HeadSkinning.Bones.TryGetValue(name, out bone))
+            {
+                return true;
+            }
+
+            connection = LeftHandConnection;
+            if (LeftHandSkinning != null && LeftHandSkinning.Bones.TryGetValue(name, out bone))
+            {
+                return true;
+            }
+
+            connection = RightHandConnection;
+            return RightHandSkinning != null && RightHandSkinning.Bones.TryGetValue(name, out bone);
+        }
+
         private void AddHardpoints(DfmSkinning skinning, Connection? connection)
         {
             foreach (var hp in skinning.GetHardpoints())
@@ -558,16 +588,231 @@ namespace LibreLancer.Render
                 }
             }
 
+            UpdateBones();
+            posed = true;
+
+            foreach (var sc in toRemove) RunningScripts.Remove(sc);
+            UpdateBounds();
+        }
+
+        private void UpdateBones()
+        {
             BodySkinning.UpdateBones();
             HeadSkinning?.UpdateBones();
             LeftHandSkinning?.UpdateBones();
             RightHandSkinning?.UpdateBones();
+            UpdateConnections();
+        }
+
+        private void UpdateConnections()
+        {
             HeadConnection?.Update();
             LeftHandConnection?.Update();
             RightHandConnection?.Update();
+        }
 
-            foreach (var sc in toRemove) RunningScripts.Remove(sc);
+        // IK (START_IK point_at)
+        public struct IKGoal
+        {
+            // The effector bone. IK turns it and CountToRoot - 1 of its ancestors.
+            public string Bone;
+            public int CountToRoot;
+            // The axes of the effector bone that point at the target and up.
+            public Vector3 Front;
+            public Vector3 Up;
+            public Vector3 TargetWorld;
+            public float Weight;
+        }
+
+        private class IKState(object owner, BoneInstance[] chain, Connection? connection, int depth)
+        {
+            public readonly object Owner = owner;
+            // The effector first, then its ancestors.
+            public readonly BoneInstance[] Chain = chain;
+            // The goal blends from the IK rotations that the chain had when the goal started.
+            public readonly Quaternion[] BlendStart = chain.Select(x => x.IKRotation).ToArray();
+            public readonly Connection? Connection = connection;
+            public readonly int Depth = depth;
+            public IKGoal Goal;
+        }
+
+        private readonly Dictionary<BoneInstance, IKState> ikGoals = new();
+        // The goals that a goal from a newer owner replaced. They stay replaced until their owner calls ClearIK.
+        private readonly HashSet<(BoneInstance Bone, object Owner)> ikReplaced = [];
+        private readonly List<IKState> ikOrder = [];
+        // The bones that IK turned in the last frame.
+        private readonly HashSet<BoneInstance> ikBones = [];
+        // An animation set the pose. Before that, UpdateBones gives a flat pose.
+        private bool posed;
+
+        // Sets the goal of an owner for the next ApplyIK. A goal from a different owner on the same effector bone
+        // replaces the old goal. After that, the goals of the old owner on that bone have no effect.
+        // Returns false when the bone does not exist.
+        public bool SetIK(object owner, in IKGoal goal)
+        {
+            if (!FindBone(goal.Bone, out var bone, out var connection))
+            {
+                return false;
+            }
+
+            if (ikReplaced.Contains((bone, owner)))
+            {
+                return true;
+            }
+
+            if (!ikGoals.TryGetValue(bone, out var state) || state.Owner != owner)
+            {
+                if (state != null)
+                {
+                    ikReplaced.Add((bone, state.Owner));
+                }
+
+                var chain = new List<BoneInstance>();
+                for (var b = bone; b != null && chain.Count < Math.Max(1, goal.CountToRoot); b = b.Parent)
+                {
+                    chain.Add(b);
+                }
+
+                var depth = 0;
+                for (var b = bone.Parent; b != null; b = b.Parent)
+                {
+                    depth++;
+                }
+
+                state = new IKState(owner, chain.ToArray(), connection, depth);
+                ikGoals[bone] = state;
+            }
+
+            state.Goal = goal;
+            return true;
+        }
+
+        public void ClearIK(object owner)
+        {
+            foreach (var (bone, state) in ikGoals)
+            {
+                if (state.Owner == owner)
+                {
+                    ikGoals.Remove(bone);
+                }
+            }
+
+            ikReplaced.RemoveWhere(x => x.Owner == owner);
+        }
+
+        // Turns the bones of the goals after the animation. modelToWorld is the world transform of the body.
+        public void ApplyIK(Transform3D modelToWorld)
+        {
+            if (!posed || (ikGoals.Count == 0 && ikBones.Count == 0))
+            {
+                return;
+            }
+
+            // Start again from the animation pose.
+            foreach (var bone in ikBones)
+            {
+                bone.IKRotation = Quaternion.Identity;
+            }
+
+            ikBones.Clear();
+            UpdateBones();
+
+            // The head and the hands hang on body bones, so the body goals come first. Then a goal on a bone near
+            // the root comes before a goal on a bone below it.
+            ikOrder.Clear();
+            ikOrder.AddRange(ikGoals.Values);
+            ikOrder.Sort(CompareIK);
+            var i = 0;
+            for (; i < ikOrder.Count && ikOrder[i].Connection == null; i++)
+            {
+                SolveIK(ikOrder[i], modelToWorld);
+            }
+
+            UpdateConnections();
+            for (; i < ikOrder.Count; i++)
+            {
+                SolveIK(ikOrder[i], modelToWorld);
+            }
+
+            BodySkinning.UpdateBounds();
+            HeadSkinning?.UpdateBounds();
+            LeftHandSkinning?.UpdateBounds();
+            RightHandSkinning?.UpdateBounds();
             UpdateBounds();
+        }
+
+        private static int CompareIK(IKState a, IKState b)
+        {
+            var c = (a.Connection != null).CompareTo(b.Connection != null);
+            return c != 0 ? c : a.Depth.CompareTo(b.Depth);
+        }
+
+        private void SolveIK(IKState state, Transform3D modelToWorld)
+        {
+            // The solve uses the space of the DFM that has the chain.
+            var partToWorld = (state.Connection?.Transform ?? Transform3D.Identity) * modelToWorld;
+            var target = partToWorld.InverseTransform(state.Goal.TargetWorld);
+            var up = Vector3.Transform(Vector3.UnitY, Quaternion.Inverse(partToWorld.Orientation));
+            var effector = state.Chain[0];
+            // The front and up axes are in the frame of the joint without its Cons rotation. Of the retail effectors,
+            // only the eyes have a Cons rotation (half a turn about Y). The retail eye events use front = Z for the
+            // pupil, which is on the -Z axis of the eye bone.
+            var axes = Quaternion.Inverse(effector.OriginalRotation);
+            var n = state.Chain.Length;
+            // The joint nearest the root turns first. Each joint takes an equal part of the turn that remains.
+            // A turn of an ancestor moves the effector, so each joint calculates the turn again.
+            for (var k = 0; k < n; k++)
+            {
+                var j = n - 1 - k;
+                var joint = state.Chain[j];
+                var pose = effector.LocalTransform;
+                var turn = Quaternion.Slerp(Quaternion.Identity, PointAt(pose.Orientation * axes, state.Goal.Front,
+                    state.Goal.Up, target - pose.Position, up), 1f / (n - k));
+                // The turn is in DFM space. Inverse(P) * turn * P is the same turn in the frame of the parent.
+                var parent = joint.Parent?.LocalTransform ?? Transform3D.Identity;
+                var ik = Quaternion.Inverse(parent.Orientation) * turn * parent.Orientation * joint.IKRotation;
+                ik = joint.LimitIK(Quaternion.Normalize(ik));
+                joint.IKRotation = Quaternion.Normalize(Quaternion.Slerp(state.BlendStart[j], ik, state.Goal.Weight));
+                joint.Update(parent);
+                ikBones.Add(joint);
+            }
+        }
+
+        // The turn that points the front axis of a bone along dir. It moves the up axis of the bone as near as
+        // possible to worldUp.
+        private static Quaternion PointAt(Quaternion bone, Vector3 front, Vector3 up, Vector3 dir, Vector3 worldUp)
+        {
+            if (dir.LengthSquared() < 1e-8f)
+            {
+                return Quaternion.Identity;
+            }
+
+            dir = Vector3.Normalize(dir);
+            front = Vector3.Transform(front, bone);
+            up = Vector3.Transform(up, bone);
+            // When the goal gives no up direction, use the shortest turn.
+            if (IsParallel(front, up) || IsParallel(dir, worldUp))
+            {
+                return Arc(front, dir);
+            }
+
+            return QuaternionEx.LookRotation(dir, worldUp) * Quaternion.Inverse(QuaternionEx.LookRotation(front, up));
+        }
+
+        private static bool IsParallel(Vector3 a, Vector3 b) => Vector3.Cross(a, b).LengthSquared() < 1e-6f;
+
+        // The shortest turn from one unit vector to another.
+        private static Quaternion Arc(Vector3 from, Vector3 to)
+        {
+            var w = 1 + Vector3.Dot(from, to);
+            if (w < 1e-6f)
+            {
+                // The vectors are opposite. Turn half a circle about an axis at a right angle to them.
+                var axis = Vector3.Cross(from, MathF.Abs(from.X) < 0.9f ? Vector3.UnitX : Vector3.UnitY);
+                return Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), MathF.PI);
+            }
+
+            return Quaternion.Normalize(new Quaternion(Vector3.Cross(from, to), w));
         }
 
         public void UploadBoneData(StorageBuffer bonesBuffer, ref int offset, ref int lastSet)
