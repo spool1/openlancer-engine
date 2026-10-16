@@ -359,10 +359,17 @@ public class ThnAttachFlagsTests
             ev.Targets[0] == "Char_Trent" || ev.Targets[0] == child);
         var trent = replay["Char_Trent"].Object!;
         var skeleton = ((CharacterRenderer)trent.RenderComponent!).Skeleton;
-        // The distance from the child to the hardpoint, with the bones of the last animation update. A rigid attach
-        // keeps it.
-        float Distance() => Vector3.Distance(replay[child].GetTransform().Position,
-            (skeleton.Hardpoints[hardpoint].Transform * trent.WorldTransform).Position);
+        // The distance from the child to the hardpoint, with the bones and the model height of the last animation
+        // update. A rigid attach keeps it. The vertical root motion changes the model height in the animation update,
+        // and the scene gives that height to the model in the next frame. Thus the test puts it into the model
+        // transform.
+        float Distance()
+        {
+            var model = trent.WorldTransform;
+            model.Position = model.Position with { Y = skeleton.ModelHeight };
+            return Vector3.Distance(replay[child].GetTransform().Position,
+                (skeleton.Hardpoints[hardpoint].Transform * model).Position);
+        }
 
         replay.RunTo(start);
         Assert.True(skeleton.Posed, "Trent has no pose");

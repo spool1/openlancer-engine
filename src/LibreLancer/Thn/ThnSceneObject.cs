@@ -112,7 +112,7 @@ public class ThnSceneObject
                     Rotate = accum;
                 }
 
-                Translate.Y = charRen.Skeleton.FloorHeight + charRen.Skeleton.RootHeight;
+                Translate.Y = charRen.Skeleton.ModelHeight;
             }
 
             if (HpMount == null)
@@ -229,14 +229,14 @@ public class ThnObjectParent(ThnSceneObject obj, IRenderHardpoint? hardpoint, Ri
     public override bool HasPose =>
         hardpoint == null || obj.Object?.RenderComponent is not CharacterRenderer ch || ch.Skeleton.Posed;
 
-    // The transform that UpdateEngineObjects gives to the model. A character stands at its floor height plus
-    // the root height of its animation.
+    // The transform that UpdateEngineObjects gives to the model. A character stands at the model height of its
+    // skeleton.
     private Transform3D GetModelTransform()
     {
         var tr = obj.GetTransform();
         if (!obj.PosFromObject && obj.Object?.RenderComponent is CharacterRenderer ch)
         {
-            tr.Position = tr.Position with { Y = ch.Skeleton.FloorHeight + ch.Skeleton.RootHeight };
+            tr.Position = tr.Position with { Y = ch.Skeleton.ModelHeight };
         }
 
         if (obj.HpMount != null)

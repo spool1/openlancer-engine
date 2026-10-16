@@ -20,6 +20,16 @@ namespace LibreLancer.Render
     {
         public float FloorHeight;
         public float RootHeight;
+        // The Y of the root channel of the newest motion with a root height: the Y at its start time, plus the
+        // vertical root motion since then.
+        private float rootVerticalOffset;
+
+        // The height of the model: the floor height, plus the root height of the newest motion, plus the Y of its
+        // root channel. The root height is the height at the start of the channel, where the Y is 0. At this height,
+        // the feet of the animation stay on the floor. Thus a motion that stands a character up from a chair moves
+        // the model from the root height of a seated character to the root height of a standing character. A motion
+        // that starts later in its channel starts at the height of that time.
+        public float ModelHeight => FloorHeight + RootHeight + rootVerticalOffset;
 
         public DfmFile? Head;
         public DfmFile Body;
@@ -232,7 +242,10 @@ namespace LibreLancer.Render
 
                         while (cht > o.Channel.Duration)
                         {
-                            translate += trOne;
+                            // At each loop, the Digital Anvil engine puts the root back at the root height of the
+                            // motion. Thus a cycle adds its horizontal root motion but not its vertical root motion,
+                            // and the height does not drift.
+                            translate += trOne with { Y = 0 };
                             rotate *= qOne;
                             cht -= o.Channel.Duration;
                             if (hangDetect++ > 10000)
@@ -257,6 +270,10 @@ namespace LibreLancer.Render
 
                 return false;
             }
+
+            // The Y of the root channel at a motion time, with the loop rule of EvaluateRoot. 0 for a motion without
+            // a Root object map.
+            public float RootY(float ft) => EvaluateRoot(ft, out _, out var translate) ? translate.Y : 0;
 
             // Advances the motion and samples its channels. An ended motion keeps its samples.
             public void RunScript(double delta)
@@ -513,6 +530,13 @@ namespace LibreLancer.Render
                 {
                     _rootMotionInstance = RunningScripts[i];
                 }
+            }
+
+            // The vertical root motion moves the model up or down. ThnSceneObject adds the horizontal root motion and
+            // the turn.
+            if (_rootMotionInstance != null)
+            {
+                rootVerticalOffset += _rootMotionInstance.RootTranslation.Y;
             }
 
             composed.Clear();
@@ -1016,11 +1040,6 @@ namespace LibreLancer.Render
         public void StartScript(Script anmScript, float start_time, float time_scale, float duration, bool loop = false,
             float transition = 0, bool overlay = false)
         {
-            if (anmScript.HasRootHeight)
-            {
-                RootHeight = anmScript.RootHeight;
-            }
-
             var inst = new ScriptInstance(start_time)
             {
                 Script = anmScript,
@@ -1032,6 +1051,14 @@ namespace LibreLancer.Render
                 Overlay = overlay && transition > 0,
                 OwnsRoot = HasRootMap(anmScript)
             };
+
+            if (anmScript.HasRootHeight)
+            {
+                RootHeight = anmScript.RootHeight;
+                // The model starts at the Y of the root channel at the start time. Thus a motion that starts again at
+                // the time where it stopped keeps the height.
+                rootVerticalOffset = inst.RootY(start_time);
+            }
 
             for (var i = 0; i < anmScript.JointMaps.Count; i++)
             {
