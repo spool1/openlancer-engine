@@ -25,6 +25,8 @@ namespace LibreLancer.Thn.Events
         public Matrix4x4 Orient;
         public AxisRotation AxisRot;
         public Vector3 Pos;
+        public TargetTypes TargetType;
+        public string? TargetPart;
 
         public struct AxisRotation
         {
@@ -35,6 +37,16 @@ namespace LibreLancer.Thn.Events
             {
                 var degs = MathHelper.Lerp(0, Degrees, pct);
                 return MathHelper.DegreesToRadians(-degs);
+            }
+
+            // Retail turns about the positive axis also for a NEG axis. X_AXIS, Y_AXIS and Z_AXIS turn the object
+            // about its own axis. NEG_X_AXIS, NEG_Y_AXIS and NEG_Z_AXIS turn it about the axis of its parent.
+            // The result is normalized, because an anim adds a turn in each frame.
+            internal Quaternion Turn(Quaternion rotation, float pct)
+            {
+                var positive = (ThnAxis) ((int) Axis % 3);
+                var turn = Quaternion.CreateFromAxisAngle(ThnTypes.AxisVector(positive), GetRads(pct));
+                return Quaternion.Normalize(Axis == positive ? rotation * turn : turn * rotation);
             }
         }
 
@@ -48,6 +60,9 @@ namespace LibreLancer.Thn.Events
             {
                 return;
             }
+
+            GetValue(props!, "target_type", out TargetType);
+            GetValue(props!, "target_part", out TargetPart);
 
             if (!GetValue(props!, "spatialprops", out ThornTable? sp))
             {
@@ -86,16 +101,6 @@ namespace LibreLancer.Thn.Events
             }
         }
 
-        private static readonly Vector3[] _axisTable =
-        [
-            Vector3.UnitX,
-            Vector3.UnitY,
-            Vector3.UnitZ,
-            -Vector3.UnitX,
-            -Vector3.UnitY,
-            -Vector3.UnitZ
-        ];
-
         public override void Run(ThnScriptInstance instance)
         {
             if (Targets.Length == 0)
@@ -119,6 +124,7 @@ namespace LibreLancer.Thn.Events
                 return;
             }
 
+            ThnObjectParent? target = null;
             if (Targets.Length > 1)
             {
                 if (!instance.Objects.TryGetValue(Targets[1], out var objB))
@@ -127,161 +133,69 @@ namespace LibreLancer.Thn.Events
                     return;
                 }
 
-                if (Duration < float.Epsilon)
-                {
-                    objA.Translate = objB.Translate;
-                    objA.Rotate = objB.Rotate;
-                }
-                else
-                {
-                    instance.AddProcessor(new FollowSpatialRoutine()
-                    {
-                        Event = this,
-                        HasPos = hasPos,
-                        HasQuat = hasQuat,
-                        This = objA,
-                        Follow = objB,
-                        OriginalRotate = objA.Rotate
-                    });
-                }
+                // target_type and target_part can select a hardpoint or a part, for example the head of a character
+                // for an IK look marker.
+                target = GetAttachParent(objB, TargetType, TargetPart);
+            }
+
+            var routine = new SpatialAnimRoutine(this, objA, target, new Transform3D(Pos, quat), hasPos, hasQuat);
+            if (Duration < float.Epsilon)
+            {
+                // A zero-duration anim runs the routine one time, at its end.
+                routine.Run(0);
             }
             else
             {
-                if (Duration < float.Epsilon)
-                {
-                    if (hasPos)
-                    {
-                        objA.Translate = Pos;
-                    }
-
-                    if (hasQuat)
-                    {
-                        objA.Rotate = quat;
-                    }
-
-                    if ((SetFlags & AnimVars.AxisRot) != AnimVars.AxisRot)
-                    {
-                        return;
-                    }
-
-                    var ogAxis = Vector3.Transform(_axisTable[(int) AxisRot.Axis], objA.Rotate);
-                    objA.Rotate *= Quaternion.CreateFromAxisAngle(ogAxis, AxisRot.GetRads(1));
-                }
-                else
-                {
-                    instance.AddProcessor(new StaticSpatialRoutine()
-                    {
-                        Event = this,
-                        HasPos = hasPos,
-                        HasQuat = hasQuat,
-                        EndPos = Pos,
-                        EndQuat = quat,
-                        This = objA,
-                        AxisRot = AxisRot,
-                        OriginalRotate = objA.Rotate
-                    });
-                }
+                instance.AddProcessor(routine);
             }
         }
 
-        private abstract class SpatialAnimRoutine : ThnEventProcessor
+        // In each frame, retail moves the object from its current pose a part w of the remaining way to the target.
+        // u is the value of the param_curve (linear without a curve). While u is below 1,
+        // w = (u - uPrev) / (1 - uPrev), where uPrev is the last u below 1. When u is 1 or more, w is 1 and uPrev does
+        // not change. Thus, for a target that does not move, the object is at from + (to - from) * u until u gets to 1.
+        // After that, it stays on the target. Copies of one event compound, the object pursues a second target that
+        // moves, and other moves of the object stay.
+        private sealed class SpatialAnimRoutine(StartSpatialPropAnimEvent ev, ThnSceneObject obj,
+            ThnObjectParent? target, Transform3D end, bool hasPos, bool hasQuat) : ThnEventProcessor
         {
-            public required StartSpatialPropAnimEvent Event;
-            public bool HasPos;
-            public bool HasQuat;
-            public AxisRotation AxisRot;
-            public Quaternion OriginalRotate;
-            public required ThnSceneObject This;
-
             private double time;
+            private float uPrev;
+            // The part of the axisrot turn that the routine applied.
+            private float turned;
 
             public override bool Run(double delta)
             {
-                time = MathHelper.Clamp(time + delta, 0, Event.Duration);
-
-                if (HasPos)
+                time = Math.Min(time + delta, ev.Duration);
+                var u = ev.GetT((float) time);
+                var w = 1f;
+                if (u < 1)
                 {
-                    This.Translate = GetPosition(delta);
+                    w = (u - uPrev) / (1 - uPrev);
+                    uPrev = u;
                 }
 
-                if (HasQuat)
+                var (toPos, toRot) = target?.GetTransform(false) ?? end;
+                var rot = obj.Rotate;
+                if (hasPos)
                 {
-                    This.Rotate = GetOrientation(delta);
+                    obj.Translate += (toPos - obj.Translate) * w;
                 }
 
-                if ((Event.SetFlags & AnimVars.AxisRot) != AnimVars.AxisRot)
+                if (hasQuat)
                 {
-                    return time < Event.Duration;
+                    obj.Rotate = Quaternion.Slerp(rot, toRot, w);
                 }
 
-                var ogAxis = Vector3.Transform(_axisTable[(int) AxisRot.Axis], OriginalRotate);
-                This.Rotate = OriginalRotate *
-                              Quaternion.CreateFromAxisAngle(ogAxis,
-                                  AxisRot.GetRads((float) (time / Event.Duration)));
-
-                return time < Event.Duration;
-            }
-
-            protected Vector3 GetPosition(double delta)
-            {
-                var end = PosEnd();
-                if (time >= Event.Duration)
+                if ((ev.SetFlags & AnimVars.AxisRot) == AnimVars.AxisRot)
                 {
-                    return end;
+                    // Retail turns the pose from the start of the frame by the change of u since the last frame. The
+                    // turn replaces the q_orient or orient result of the frame.
+                    obj.Rotate = ev.AxisRot.Turn(rot, u - turned);
+                    turned = u;
                 }
 
-                var len = (end - This.Translate).Length();
-                if (len <= float.Epsilon)
-                {
-                    return end;
-                }
-
-                var dir = (end - This.Translate).Normalized();
-                var pct = (float) (delta / (Event.Duration - time));
-                if (pct > 1)
-                {
-                    pct = 1;
-                }
-
-                return This.Translate + (dir * len * pct);
-            }
-
-            protected Quaternion GetOrientation(double delta)
-            {
-                var end = QEnd();
-                if (time >= Event.Duration)
-                {
-                    return end;
-                }
-
-                var pct = (float) (delta / (Event.Duration - time));
-                return pct >= 1 ? end : Quaternion.Slerp(This.Rotate, end, pct);
-            }
-
-            protected abstract Quaternion QEnd();
-            protected abstract Vector3 PosEnd();
-        }
-
-        private class StaticSpatialRoutine : SpatialAnimRoutine
-        {
-            public Vector3 EndPos;
-            public Quaternion EndQuat;
-            protected override Quaternion QEnd() => EndQuat;
-            protected override Vector3 PosEnd() => EndPos;
-        }
-
-        private class FollowSpatialRoutine : SpatialAnimRoutine
-        {
-            public required ThnSceneObject Follow;
-
-            protected override Quaternion QEnd()
-            {
-                return Follow.Rotate;
-            }
-
-            protected override Vector3 PosEnd()
-            {
-                return Follow.Translate;
+                return time < ev.Duration;
             }
         }
     }
