@@ -54,6 +54,9 @@ namespace LibreLancer.Server
 
         private volatile bool running = false;
 
+        // True from Start until Stop. A host reads it to know if the server thread still takes actions.
+        public bool Running => running;
+
         public GameListener? Listener;
         private Thread gameThread = null!;
 
