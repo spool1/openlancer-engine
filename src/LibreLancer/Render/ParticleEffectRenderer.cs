@@ -42,6 +42,9 @@ namespace LibreLancer.Render
             fx?.Reset();
         }
 
+        // For tests.
+        internal ParticleEffectInstance? Instance => fx;
+
         public override bool PrepareRender(ICamera camera, NebulaRenderer? nr, SystemRenderer sys, bool forceCull)
         {
             if (fx == null)

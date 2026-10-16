@@ -84,6 +84,7 @@ namespace LibreLancer.Fx
 
         public int NodeCount;
         public int EmitterNodeCount;
+        public bool HasAttachmentNode;
 
         //Code suggested by Callum
         void AssignNodeIds(NodeReference item)
@@ -102,6 +103,8 @@ namespace LibreLancer.Fx
             NodeCount = 0;
             foreach(var n in Tree)
                 AssignNodeIds(n);
+            // In retail data, the attachment node is always a root node.
+            HasAttachmentNode = Tree.Exists(x => x.IsAttachmentNode);
 
             ParticleCounts = new int[Appearances.Count];
             float radius = 0;
@@ -127,8 +130,10 @@ namespace LibreLancer.Fx
                 if (emitter.Frequency != null &&
                     emitter.InitLifeSpan != null)
                 {
+                    // One retail emitter stores uninitialized memory as its count, which reads as a negative number.
                     var max2 = (int) (Math.Ceiling(emitter.Frequency.GetMax(false) *
-                                                   emitter.InitLifeSpan.GetMax(false)));
+                                                   emitter.InitLifeSpan.GetMax(false))) +
+                               Math.Max(0, emitter.InitialParticles);
                     if (max2 < maxParticles)
                         maxParticles = max2;
                 }

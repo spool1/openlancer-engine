@@ -2,6 +2,7 @@
 // This file is subject to the terms and conditions defined in
 // LICENSE, which is part of this source code package
 
+using System;
 using LibreLancer.Client.Components;
 using LibreLancer.Render;
 using LibreLancer.Thorn;
@@ -35,9 +36,21 @@ namespace LibreLancer.Thn.Events
             }
             
             var r = (ParticleEffectRenderer)obj.Object.RenderComponent!;
+            // START_PSYS starts the effect from its beginning. s069x fires one muzzle-flare effect again for each shot.
+            // A start at or after the end of the earlier start also restarts an effect that is still active.
+            // The processors run after the events, so the stop of the earlier start can come later in this frame.
+            var start = Milliseconds(Time);
+            if (!r.Active || obj.PSysEnd <= start)
+            {
+                r.Restart();
+            }
             r.Active = true;
-            instance.AddProcessor(new StopPSys(r, Duration));
+            obj.PSysEnd = Milliseconds((double)Time + Duration);
+            instance.AddProcessor(new StopPSys(obj, r, Duration));
         }
+
+        // Retail keeps event times in whole milliseconds.
+        private static long Milliseconds(double seconds) => (long)Math.Round(seconds * 1000);
 
         private class StopEngine : ThnEventProcessor
         {
@@ -70,11 +83,15 @@ namespace LibreLancer.Thn.Events
             private double time;
             public double Duration;
             public ParticleEffectRenderer Fx;
+            private readonly ThnSceneObject obj;
+            private readonly long end;
 
-            public StopPSys(ParticleEffectRenderer fx, double duration)
+            public StopPSys(ThnSceneObject obj, ParticleEffectRenderer fx, double duration)
             {
+                this.obj = obj;
                 Fx = fx;
                 Duration = duration;
+                end = obj.PSysEnd;
             }
 
             public override bool Run(double delta)
@@ -82,7 +99,11 @@ namespace LibreLancer.Thn.Events
                 time += delta;
                 if(time >= Duration)
                 {
-                    Fx.Active = false;
+                    // Only the last START_PSYS on the entity stops the effect.
+                    if (obj.PSysEnd == end)
+                    {
+                        Fx.Active = false;
+                    }
                     return false;
                 }
                 return true;

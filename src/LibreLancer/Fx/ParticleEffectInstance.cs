@@ -24,6 +24,7 @@ namespace LibreLancer.Fx
     {
         public double NextEmitCount;
         public int Count;
+        public bool InitialEmitted;
     }
 
     public class ParticleEffectInstance
@@ -153,7 +154,13 @@ namespace LibreLancer.Fx
             //Update transformation tree
             foreach (NodeReference currentNodeReference in Effect.Tree)
             {
-                Matrix4x4 currentTransform = currentNodeReference.IsAttachmentNode ? transform : Matrix4x4.Identity;
+                // Retail puts the effect root at the effect transform at each step. The rule for an effect without
+                // an attachment node is an inference: its root nodes follow the effect in each frame, because only
+                // then do the TV overlays of the cutscenes fit the screen. With an attachment node, the other root
+                // nodes stay in world space.
+                Matrix4x4 currentTransform = currentNodeReference.IsAttachmentNode || !Effect.HasAttachmentNode
+                    ? transform
+                    : Matrix4x4.Identity;
                 TraverseTree(currentTransform, currentNodeReference);
             }
 

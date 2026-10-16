@@ -25,6 +25,8 @@ public class ThnSceneObject
     public bool Animating = false;
     public bool PosFromObject = false;
     public CEngineComponent? Engine;
+    // The end of the last START_PSYS on this entity, in whole milliseconds of script time.
+    internal long PSysEnd = long.MinValue;
     public int MonitorIndex = 0;
 
     public List<ThnAttachment> Attachments = new();
