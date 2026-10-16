@@ -468,11 +468,18 @@ public class ThnStartIKTests
         Assert.True(Vector3.Distance(parent.Transform(Vector3.UnitY), bone.LocalTransform.Position) < 1e-5f);
     }
 
-    internal static StartIKEvent HeadAtMarker(float duration, float transition) => new()
+    // Retail event_flags 128. The meaning is inferred (see StartIKEvent.Overlay): the goal blends back to the
+    // animation when it ends.
+    internal const int Overlay = 128;
+
+    internal static StartIKEvent HeadAtMarker(float duration, float transition, int flags = 0,
+        string marker = "marker", float time = 0) => new()
     {
+        Time = time,
         Duration = duration,
         TransitionDuration = transition,
-        Targets = ["trent", "marker"],
+        Flags = flags,
+        Targets = ["trent", marker],
         EndEffector = "Body_Head",
         CountToRoot = 1,
         TargetType = TargetTypes.Root,
@@ -481,21 +488,41 @@ public class ThnStartIKTests
         PointAt = true
     };
 
-    // A cutscene with Trent and a marker in front of his head. Each frame uses the order of Cutscene._Update: the
-    // events and processors, then the scene objects, then GameWorld.Update, which runs the animation component.
+    private static StartIKEvent EyeAtMarker(float duration, float transition, int flags = 0)
+    {
+        var ik = HeadAtMarker(duration, transition, flags);
+        ik.EndEffector = "Eye IK Left";
+        ik.Up = ThnAxis.YAxis;
+        return ik;
+    }
+
+    // A cutscene with Trent and two markers. "marker" is in front of his head and to the left. "right" is 1.5 m from
+    // his head and 50 degrees to the right. Each frame uses the order of Cutscene._Update: the events and
+    // processors, then the scene objects, then GameWorld.Update, which runs the animation component. The events
+    // must be in the order of their time.
     internal sealed class Scene
     {
         public readonly DfmSkeletonManager Skeleton = StandingTrent();
         public readonly ThnSceneObject Marker;
+        public readonly ThnSceneObject Right;
         public bool ScriptEnded { get; private set; }
         private readonly ThnScriptInstance instance;
         private readonly ThnSceneObject trent;
         private readonly AnimationComponent animation;
+        private readonly bool animate;
 
-        public Scene(StartIKEvent ik, double scriptDuration = 100)
+        public Scene(StartIKEvent ik, double scriptDuration = 100, bool animate = false)
+            : this([ik], scriptDuration, animate)
         {
+        }
+
+        // When animate is false, the animation stays at its pose and the model stays at World. Thus only IK changes
+        // the bones.
+        public Scene(StartIKEvent[] events, double scriptDuration = 100, bool animate = false)
+        {
+            this.animate = animate;
             var script = new ThnScript() { Duration = scriptDuration };
-            script.Events.Add(ik);
+            script.Events.AddRange(events);
             // A cutscene without a game or a world. The script instance tells it when the script ends.
             var cutscene = new Cutscene(new ThnScriptContext(null), null!, null!, null, new Rectangle(0, 0, 1, 1),
                 null!);
@@ -513,8 +540,16 @@ public class ThnStartIKTests
                 Name = "marker", Translate = Near(Skeleton, "Body_Head", new Vector3(-0.6f, 0.2f, -1)),
                 Rotate = Quaternion.Identity
             };
+            var right = 50 * OneDegree;
+            Right = new ThnSceneObject()
+            {
+                Name = "right",
+                Translate = Near(Skeleton, "Body_Head", 1.5f * new Vector3(MathF.Sin(right), 0, -MathF.Cos(right))),
+                Rotate = Quaternion.Identity
+            };
             instance.Objects[trent.Name] = trent;
             instance.Objects[Marker.Name] = Marker;
+            instance.Objects[Right.Name] = Right;
             // Cutscene.SceneSetup runs the events at T=0.
             Frame(0);
         }
@@ -524,10 +559,87 @@ public class ThnStartIKTests
             instance.Update(delta);
             trent.Update();
             Marker.Update();
-            // A zero time step keeps the animation pose. Thus only IK changes the bones.
-            animation.Update(0, null!);
-            AssertNear(World, trent.Object!.WorldTransform);
+            Right.Update();
+            if (animate)
+            {
+                // The root of the idle moves the model less than 1 mm. Thus the scene does not check the model.
+                animation.Update(delta, null!);
+            }
+            else
+            {
+                animation.Update(0, null!);
+                AssertNear(World, trent.Object!.WorldTransform);
+            }
         }
+
+        public void Run(int frames, double delta)
+        {
+            for (var i = 0; i < frames; i++)
+            {
+                Frame(delta);
+            }
+        }
+
+        // Runs frames of 1/60 s. Gives the largest turn of Body_Head in one frame.
+        public float LargestHeadStep(double seconds)
+        {
+            var largest = 0f;
+            var last = Skeleton.GetBone("Body_Head")!.Transform.Orientation;
+            for (var i = 0; i < (int)Math.Round(seconds * 60); i++)
+            {
+                Frame(1.0 / 60);
+                var now = Skeleton.GetBone("Body_Head")!.Transform.Orientation;
+                largest = Math.Max(largest, Angle(last, now));
+                last = now;
+            }
+
+            return largest;
+        }
+    }
+
+    // The local rotation that a bone shows, as BoneInstance.Update composes it.
+    private static Quaternion Shown(BoneInstance bone) => bone.IKRotation * bone.Rotation * bone.OriginalRotation;
+
+    // The angle between two rotations. It is accurate also for small angles.
+    private static float Angle(Quaternion a, Quaternion b)
+    {
+        var d = Quaternion.Inverse(a) * b;
+        return 2 * MathF.Asin(Math.Min(1f, new Vector3(d.X, d.Y, d.Z).Length()));
+    }
+
+    // The animations for motions that the tests start on the skeleton. The files are large, so the tests load them
+    // one time.
+    private static readonly Lazy<AnmFile> animations = new(() => RetailData.Open().LoadAnimations(
+        DfmMotionStackTests.GenericMale, @"CHARACTERS\ANIMATIONS\HandMale.anm",
+        @"CHARACTERS\ANIMATIONS\FacialMale.anm", @"CHARACTERS\ANIMATIONS\Special.anm"));
+
+    // The rotation sample of a bone in a motion at a motion time.
+    private static Quaternion Sample(Script motion, string bone, float time)
+    {
+        var cursor = 0;
+        return JointChannel(motion, bone, false).QuaternionAtTime(time, ref cursor);
+    }
+
+    // The translation sample of a bone in a motion at a motion time.
+    private static Vector3 Translation(Script motion, string bone, float time)
+    {
+        var cursor = 0;
+        return JointChannel(motion, bone, true).PositionAtTime(time, ref cursor);
+    }
+
+    private static Channel JointChannel(Script motion, string bone, bool translation)
+    {
+        for (var i = 0; i < motion.JointMaps.Count; i++)
+        {
+            ref var jm = ref motion.JointMaps[i];
+            if (jm.ChildName.Equals(bone, StringComparison.OrdinalIgnoreCase) &&
+                (translation ? jm.Channel.HasPosition : jm.Channel.HasOrientation))
+            {
+                return jm.Channel;
+            }
+        }
+
+        throw new ArgumentException($"{motion.Name} does not drive {bone}");
     }
 
     [Fact]
@@ -557,11 +669,12 @@ public class ThnStartIKTests
         AssertPointsAt(scene.Skeleton, "Body_Head", ThnAxis.ZAxis, scene.Marker.Translate);
     }
 
-    // The weight is time / transition until the end. Then the goal ends at once.
+    // The weight follows the cosine ease until the end. Then the overlay goal blends back from the pose of its last
+    // frame, so the head does not step back to the animation.
     [Fact]
     public void ATransitionAsLongAsTheDurationBlendsInUntilTheEnd()
     {
-        var scene = new Scene(HeadAtMarker(1, 1));
+        var scene = new Scene(HeadAtMarker(1, 1, Overlay));
         var head = Bone(scene.Skeleton, "Body_Head");
         AssertFinite(scene.Skeleton);
         var angles = new List<float>();
@@ -572,11 +685,14 @@ public class ThnStartIKTests
             angles.Add(Angle(head.IKRotation));
         }
 
-        // The angles at 0.4 s and at 0.8 s.
+        // The angles at 0.4 s and at 0.8 s. A linear blend gives 2.
+        var ratio = DfmSkeletonManager.TransitionWeight(0.8, 1) / DfmSkeletonManager.TransitionWeight(0.4, 1);
         Assert.True(angles[3] > OneDegree, "The head does not turn");
-        Assert.InRange(angles[7] / angles[3], 1.98f, 2.02f);
+        Assert.InRange(angles[7] / angles[3], ratio - 0.02f, ratio + 0.02f);
+        // At 1.1 s, the head has blended back by the weight at 0.1 s from its angle at 0.9 s.
         scene.Frame(0.2);
-        Assert.Equal(Quaternion.Identity, head.IKRotation);
+        var left = 1 - DfmSkeletonManager.TransitionWeight(0.1, 1);
+        Assert.InRange(Angle(head.IKRotation) / angles[8], left - 0.005f, left + 0.005f);
     }
 
     // An IK event can end after its script. No processor runs after the script ends, so the goal ends with the
@@ -594,6 +710,285 @@ public class ThnStartIKTests
         Assert.Equal(Quaternion.Identity, head.IKRotation);
         scene.Frame(0.5);
         Assert.Equal(Quaternion.Identity, head.IKRotation);
+    }
+
+    // The frames of these tests are exact binary fractions, so a goal ends exactly at its duration.
+    private const double Sixteenth = 1.0 / 16;
+
+    // An overlay goal blends back over its transition with the cosine ease. It blends from the fixed pose of its
+    // last frame to the live animation.
+    [Fact]
+    public void AnOverlayGoalBlendsBackToTheAnimation()
+    {
+        var scene = new Scene(HeadAtMarker(1, 0.5f, Overlay), animate: true);
+        var head = Bone(scene.Skeleton, "Body_Head");
+        scene.Run(15, Sixteenth);
+        var held = Shown(head);
+        var animation = head.Rotation;
+        Assert.True(Angle(head.IKRotation) > 10 * OneDegree, "The head does not turn");
+
+        // At 1 s, the goal ends. The weight of the animation is 0, so the head keeps its pose.
+        scene.Frame(Sixteenth);
+        Assert.True(Angle(animation, head.Rotation) > 1e-3f, "The animation does not move the head");
+        Assert.True(Angle(held, Shown(head)) < 1e-4f, "The head does not keep its pose");
+
+        for (var i = 1; i < 8; i++)
+        {
+            scene.Frame(Sixteenth);
+            // The angle of Slerp(held, animation, w) from the animation is (1 - w) of the angle of held.
+            var pose = head.Rotation * head.OriginalRotation;
+            var expected = (1 - DfmSkeletonManager.TransitionWeight(i * Sixteenth, 0.5)) * Angle(held, pose);
+            Assert.InRange(Angle(pose, Shown(head)), 0.99f * expected - 1e-4f, 1.01f * expected + 1e-4f);
+        }
+
+        scene.Frame(Sixteenth);
+        Assert.Equal(Quaternion.Identity, head.IKRotation);
+    }
+
+    // The eye has a Cons rotation of half a turn. Its blend-back must go from its held pose to its animation pose.
+    [Fact]
+    public void AnEyeBlendsBackToItsAnimationPose()
+    {
+        var scene = new Scene(EyeAtMarker(1, 0.5f, Overlay));
+        var eye = Bone(scene.Skeleton, "Eye IK Left");
+        scene.Run(15, Sixteenth);
+        var held = Shown(eye);
+        var animation = eye.Rotation * eye.OriginalRotation;
+        var angle = Angle(held, animation);
+        Assert.True(angle > 5 * OneDegree, "The eye does not turn");
+
+        for (var i = 0; i < 8; i++)
+        {
+            scene.Frame(Sixteenth);
+            var expected = (1 - DfmSkeletonManager.TransitionWeight(i * Sixteenth, 0.5)) * angle;
+            Assert.InRange(Angle(animation, Shown(eye)), 0.99f * expected - 1e-4f, 1.01f * expected + 1e-4f);
+        }
+
+        scene.Frame(Sixteenth);
+        Assert.Equal(Quaternion.Identity, eye.IKRotation);
+        Assert.True(Angle(animation, Shown(eye)) < 1e-4f, "The eye is not at its animation pose");
+    }
+
+    // We infer that retail keeps no animation under a goal that is not an overlay or that has no transition. When
+    // such a goal ends, its joint holds the pose. The animation under the joint and a motion that does not drive the
+    // joint do not move it. The hold stays after the script ends.
+    [Theory]
+    [InlineData(0, 0.5f)]
+    [InlineData(Overlay, 0f)]
+    [InlineData(0, 0f)]
+    public void AGoalWithoutABlendBackHoldsItsPose(int flags, float transition)
+    {
+        var scene = new Scene(HeadAtMarker(1, transition, flags), 1.5, true);
+        var head = Bone(scene.Skeleton, "Body_Head");
+        scene.Run(15, Sixteenth);
+        var held = Shown(head);
+        Assert.True(Angle(head.IKRotation) > 10 * OneDegree, "The head does not turn");
+
+        scene.Frame(Sixteenth);
+        Assert.True(Angle(held, Shown(head)) < 1e-4f, "The head does not hold at 1 s");
+        scene.Skeleton.StartScript(animations.Value.Scripts["Sc_MLHAND_NEUT_RGHT_000LV_A_00"], 0, 1, 0, true, 0.5f);
+        for (var i = 1; i <= 32; i++)
+        {
+            scene.Frame(Sixteenth);
+            Assert.True(Angle(held, Shown(head)) < 1e-4f, $"The head moves at {1 + i * Sixteenth} s");
+        }
+
+        Assert.True(scene.ScriptEnded, "The script does not end");
+    }
+
+    // A new motion that drives a held joint blends from the held pose over its transition, or takes the joint at
+    // once without a transition. Events run before processors. Thus a motion that starts in the frame in which the
+    // goal ends starts before the hold. It must also start from the held pose, also on an eye that no motion drove
+    // before.
+    [Theory]
+    [InlineData("Body_Head", 0.5f, false)]
+    [InlineData("Body_Head", 0f, false)]
+    [InlineData("Body_Head", 0.5f, true)]
+    [InlineData("Body_Head", 0f, true)]
+    [InlineData("Eye IK Left", 0.5f, false)]
+    [InlineData("Eye IK Left", 0.5f, true)]
+    public void ANewMotionOnAHeldJointStartsFromTheHeldPose(string bone, float transition, bool sameFrame)
+    {
+        var eye = bone != "Body_Head";
+        var scene = new Scene(eye ? EyeAtMarker(1, 0.5f) : HeadAtMarker(1, 0.5f), animate: true);
+        var joint = Bone(scene.Skeleton, bone);
+        scene.Run(15, Sixteenth);
+        var held = Quaternion.Normalize(joint.IKRotation * joint.Rotation);
+        if (!sameFrame)
+        {
+            scene.Frame(Sixteenth);
+        }
+
+        // With the time scale 0, the motion keeps its sample at 0.5 s.
+        var motion =
+            animations.Value.Scripts[eye ? "Sc_MLHEAD_BASEPOSE_000LV_02_01" : "Sc_MLBODY_STND_TURN_180LV_XA_04"];
+        var sample = Sample(motion, bone, 0.5f);
+        Assert.True(Angle(held, sample) > 5 * OneDegree, "The motion has the held pose");
+        scene.Skeleton.StartScript(motion, 0.5f, 0, 0, false, transition);
+        scene.Run(4, Sixteenth);
+
+        var expected = Quaternion.Slerp(held, sample, DfmSkeletonManager.TransitionWeight(4 * Sixteenth, transition));
+        var error = Angle(expected, joint.Rotation);
+        Assert.True(error < 1e-3f, $"{bone} is {error / OneDegree} degrees from the expected pose");
+        Assert.Equal(Quaternion.Identity, joint.IKRotation);
+    }
+
+    // s002xe 44.645 and 45.914: the next goal on the head starts 59 ms after the end of the goal before it. The head
+    // must not step at the end of the first goal or at the start of the next goal.
+    [Theory]
+    [InlineData(Overlay)]
+    [InlineData(0)]
+    public void AGoalAfterAShortGapTakesTheHeadWithoutAStep(int flags)
+    {
+        var scene = new Scene([
+            HeadAtMarker(1.21f, 1.2f, flags),
+            HeadAtMarker(4.718f, 1, Overlay, "right", 1.269f)
+        ]);
+        var largest = scene.LargestHeadStep(1.2);
+        var first = scene.Skeleton.GetBone("Body_Head")!.Transform.Orientation;
+        largest = Math.Max(largest, scene.LargestHeadStep(1.8));
+
+        var turn = Angle(first, scene.Skeleton.GetBone("Body_Head")!.Transform.Orientation);
+        Assert.True(turn > 40 * OneDegree, $"The head turns only {turn / OneDegree} degrees between the goals");
+        Assert.True(largest < 3 * OneDegree, $"The head turns {largest / OneDegree} degrees in one frame");
+    }
+
+    // s064x 53.178: the next goal on the head starts when the goal before it ends. During its blend-in, a motion
+    // without a transition starts. The new goal blends from the pose of the goal before, as an IK rotation over the
+    // animation. Thus the motion turns the head only by the step of the animation, which is small.
+    [Theory]
+    [InlineData(0)]
+    [InlineData(Overlay)]
+    public void AMotionInTheBlendInOfTheNextGoalTurnsTheHeadWithoutAStep(int flags)
+    {
+        var scene = new Scene([HeadAtMarker(1, 0.5f, flags), HeadAtMarker(5, 1.7f, Overlay, "right", 1)],
+            animate: true);
+        var largest = scene.LargestHeadStep(1.5);
+        scene.Skeleton.StartScript(animations.Value.Scripts["Sc_MLBODY_STND_IDLE_000LV_xa_04"], 0, 1, 0, true);
+        largest = Math.Max(largest, scene.LargestHeadStep(1.5));
+
+        Assert.True(largest < 3 * OneDegree, $"The head turns {largest / OneDegree} degrees in one frame");
+    }
+
+    // s015x 50.875-52.875: a motion without a transition starts 61 ms before the end of a goal that is not an
+    // overlay. The motion is over the goal, so the head blends back to it over the transition of the goal. The head
+    // must not hold until the next motion, which also has no transition.
+    [Fact]
+    public void AJointThatAMotionTookDuringTheGoalBlendsBackToIt()
+    {
+        var scene = new Scene(HeadAtMarker(1, 0.6f), animate: true);
+        var head = Bone(scene.Skeleton, "Body_Head");
+        var largest = scene.LargestHeadStep(0.939);
+        scene.Skeleton.StartScript(animations.Value.Scripts["Sc_MLBODY_STND_WALK_TRNS_270LV_XA_02"], 0, 1, 2);
+        largest = Math.Max(largest, scene.LargestHeadStep(2));
+        Assert.Equal(Quaternion.Identity, head.IKRotation);
+        scene.Skeleton.StartScript(animations.Value.Scripts["Sc_MLBODY_WLKG_000LV_XA_01"], 0, 1, 0, true);
+        largest = Math.Max(largest, scene.LargestHeadStep(1));
+
+        Assert.True(largest < 3 * OneDegree, $"The head turns {largest / OneDegree} degrees in one frame");
+    }
+
+    // s072ab 119.736-122.840: a goal with a transition of 1 ms. An idle with a transition of 1 s starts during the
+    // goal. The joint blends back to the idle over the last transition on the joint, which is the transition of the
+    // idle. This is also true for an overlay goal.
+    [Theory]
+    [InlineData(0)]
+    [InlineData(Overlay)]
+    public void AJointBlendsBackOverTheTransitionOfTheMotionThatTookIt(int flags)
+    {
+        var scene = new Scene(HeadAtMarker(3.104f, 0.001f, flags), animate: true);
+        var head = Bone(scene.Skeleton, "Body_Head");
+        // The goal takes the head in its first frame.
+        scene.LargestHeadStep(0.217);
+        scene.Skeleton.StartScript(animations.Value.Scripts["Sc_MLBODY_STND_IDLE_000LV_xa_04"], 0, 1, 0, true, 1);
+        var largest = scene.LargestHeadStep(2.8);
+        Assert.True(Angle(head.IKRotation) > 10 * OneDegree, "The head does not turn");
+        largest = Math.Max(largest, scene.LargestHeadStep(1.2));
+
+        Assert.Equal(Quaternion.Identity, head.IKRotation);
+        Assert.True(largest < 2 * OneDegree, $"The head turns {largest / OneDegree} degrees in one frame");
+    }
+
+    // A motion that took the joint during the goal and ended before the goal also leaves no animation under the
+    // goal. The joint blends back to the last pose of the motion.
+    [Fact]
+    public void AJointBlendsBackToAMotionThatEndedDuringTheGoal()
+    {
+        var scene = new Scene(HeadAtMarker(1, 0.5f), animate: true);
+        var head = Bone(scene.Skeleton, "Body_Head");
+        scene.Run(4, Sixteenth);
+        scene.Skeleton.StartScript(animations.Value.Scripts["Sc_MLBODY_STND_TURN_180LV_XA_04"], 0, 1, 0.25f);
+        scene.Run(8, Sixteenth);
+        var last = head.Rotation;
+        scene.Run(3, Sixteenth);
+        Assert.True(Angle(head.IKRotation) > 10 * OneDegree, "The head does not turn");
+
+        // The goal ends at 1 s and blends back until 1.5 s.
+        scene.Run(9, Sixteenth);
+        Assert.Equal(Quaternion.Identity, head.IKRotation);
+        Assert.Equal(last, head.Rotation);
+    }
+
+    // s029x 7.261: a goal with a count of 2 blends back, and a new goal with a count of 1 takes the head. The neck is
+    // not in the new chain, so it continues its blend-back.
+    [Fact]
+    public void ANewGoalOnAShorterChainLeavesTheBlendBackOfTheOtherJoints()
+    {
+        var first = HeadAtMarker(1, 0.5f, Overlay);
+        first.CountToRoot = 2;
+        var scene = new Scene([first, HeadAtMarker(1, 0.5f, Overlay, "right", 1.125f)]);
+        var neck = Bone(scene.Skeleton, "Body_Neck");
+        scene.Run(15, Sixteenth);
+        var held = Shown(neck);
+        var animation = neck.Rotation * neck.OriginalRotation;
+        var angle = Angle(held, animation);
+        Assert.True(angle > 5 * OneDegree, "The neck does not turn");
+
+        // At 1.25 s, the second goal has the head, and the weight of the neck blend-back is 0.5.
+        scene.Run(5, Sixteenth);
+        var expected = (1 - DfmSkeletonManager.TransitionWeight(0.25, 0.5)) * angle;
+        Assert.InRange(Angle(animation, Shown(neck)), 0.99f * expected - 1e-4f, 1.01f * expected + 1e-4f);
+    }
+
+    // IK turns its joints, but it does not move them. Thus a motion that takes a held joint frees only the rotation
+    // channel of the joint. A motion under the hold keeps its translation channel.
+    [Fact]
+    public void AMotionThatTakesAHeldJointLeavesTheTranslation()
+    {
+        var scene = new Scene(HeadAtMarker(1, 0.5f, time: 0.25f), animate: true);
+        var head = Bone(scene.Skeleton, "Body_Head");
+        // One of the few retail motions that move Body_Head. It starts before the goal, so it is under the goal.
+        var under = animations.Value.Scripts["Sc_SPCBODY_s069x_jacobi_xc_STND_000DN_03"];
+        scene.Skeleton.StartScript(under, 0, 1, 0, true);
+        // The goal ends at 1.25 s.
+        scene.Run(24, Sixteenth);
+        Assert.True(Angle(head.IKRotation) > 5 * OneDegree, "The head does not hold");
+        var start = head.Translation;
+        scene.Skeleton.StartScript(animations.Value.Scripts["Sc_MLBODY_STND_TURN_180LV_XA_04"], 0.5f, 0, 0, false,
+            0.5f);
+        scene.Run(16, Sixteenth);
+        Assert.Equal(Quaternion.Identity, head.IKRotation);
+
+        var expected = Translation(under, "Body_Head", (float)(40 * Sixteenth));
+        Assert.True(Vector3.Distance(start, expected) > 1e-5f, "The motion does not move Body_Head");
+        Assert.True(Vector3.Distance(expected, head.Translation) < 1e-6f,
+            $"Body_Head is at {head.Translation}, not at {expected}");
+    }
+
+    // The goal of the diagnosis probe (s002xe 16.218) has a duration of 1.781 s and a transition of 0.7 s. Its target
+    // is 1.5 m away and 50 degrees to the right. Before, the head turned 34.8 degrees in one frame when the goal
+    // ended.
+    [Theory]
+    [InlineData(Overlay)]
+    [InlineData(0)]
+    public void TheProbeTurnHasNoStep(int flags)
+    {
+        var scene = new Scene(HeadAtMarker(1.781f, 0.7f, flags, "right"));
+        var largest = scene.LargestHeadStep(1.5);
+        AssertPointsAt(scene.Skeleton, "Body_Head", ThnAxis.ZAxis, scene.Right.Translate);
+        largest = Math.Max(largest, scene.LargestHeadStep(1.5));
+
+        Assert.True(largest < 2 * OneDegree, $"The head turns {largest / OneDegree} degrees in one frame");
     }
 
     [Theory]
@@ -631,6 +1026,7 @@ public class ThnStartIKTests
         props["point_at"] = 1f;
         props["move_to"] = 0f;
         props["transition_duration"] = 0.3f;
+        props["event_flags"] = 128f;
         var table = new ThornTable();
         table.Append(19.218f);
         table.Append(EventTypes.StartIK);
@@ -652,6 +1048,8 @@ public class ThnStartIKTests
         Assert.True(ev.PointAt);
         Assert.False(ev.MoveTo);
         Assert.Equal(0.3f, ev.TransitionDuration);
+        Assert.Equal(128, ev.Flags);
+        Assert.True(ev.Overlay);
     }
 }
 

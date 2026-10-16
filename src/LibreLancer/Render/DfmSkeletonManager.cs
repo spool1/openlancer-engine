@@ -168,6 +168,8 @@ namespace LibreLancer.Render
             public bool Moved;
             // The motion reached its end. Its samples keep the values of the last update.
             public bool Ended;
+            // UpdateScripts ran the motion. False for a motion that started after the last update.
+            public bool Updated;
             private double endT;
 
             public RefList<ResolvedJoint> Joints = [];
@@ -260,6 +262,7 @@ namespace LibreLancer.Render
             public void RunScript(double delta)
             {
                 Moved = false;
+                Updated = true;
                 T += delta;
                 if (Ended)
                 {
@@ -641,12 +644,32 @@ namespace LibreLancer.Render
             public readonly BoneInstance[] Chain = chain;
             // The goal blends from the IK rotations that the chain had when the goal started.
             public readonly Quaternion[] BlendStart = chain.Select(x => x.IKRotation).ToArray();
+            // For each chain joint, the first motion that started on the joint after the goal started, and the newest
+            // transition over 0 of these motions.
+            public readonly ScriptInstance?[] Motions = new ScriptInstance?[chain.Length];
+            public readonly float[] Transitions = new float[chain.Length];
             public readonly Connection? Connection = connection;
             public readonly int Depth = depth;
             public IKGoal Goal;
         }
 
+        // A chain joint of a goal that ended. The joint shows Slerp(Held, animation, Release).
+        private class EndedJoint(object? owner, Quaternion held, float duration)
+        {
+            // The owner that blends the joint back to the animation. Null for a hold: the joint keeps its pose until
+            // a motion or a new goal takes it.
+            public readonly object? Owner = owner;
+            // The local rotation of the joint in the last frame of the goal (IK * Rotation * Cons, as
+            // BoneInstance.Update composes it).
+            public readonly Quaternion Held = held;
+            // The time of the blend-back.
+            public readonly float Duration = duration;
+            // The weight of the animation over Held.
+            public float Release;
+        }
+
         private readonly Dictionary<BoneInstance, IKState> ikGoals = new();
+        private readonly Dictionary<BoneInstance, EndedJoint> ikEnded = new();
         // The goals that a goal from a newer owner replaced. They stay replaced until their owner calls ClearIK.
         private readonly HashSet<(BoneInstance Bone, object Owner)> ikReplaced = [];
         private readonly List<IKState> ikOrder = [];
@@ -691,12 +714,19 @@ namespace LibreLancer.Render
 
                 state = new IKState(owner, chain.ToArray(), connection, depth);
                 ikGoals[bone] = state;
+                // The new goal takes the ended joints of its chain from their current pose. The other joints of an
+                // ended chain keep their hold or blend-back.
+                foreach (var joint in state.Chain)
+                {
+                    ikEnded.Remove(joint);
+                }
             }
 
             state.Goal = goal;
             return true;
         }
 
+        // Removes the goals of an owner and the joints that it blends back. A held joint stays.
         public void ClearIK(object owner)
         {
             foreach (var (bone, state) in ikGoals)
@@ -707,13 +737,120 @@ namespace LibreLancer.Render
                 }
             }
 
+            foreach (var (joint, ended) in ikEnded)
+            {
+                if (ended.Owner == owner)
+                {
+                    ikEnded.Remove(joint);
+                }
+            }
+
             ikReplaced.RemoveWhere(x => x.Owner == owner);
+        }
+
+        // Ends the target tracking of the goals of an owner. transition is the transition of the goals. Each chain
+        // joint starts from its pose of the last frame, and ReleaseIK blends it back to the live animation:
+        // - A motion that started on the joint during the goal and ran is over the goal. The joint blends back to the
+        //   animation over the last transition on the joint. This is the newest transition of these motions, or else
+        //   the transition of the goal.
+        // - Else an overlay goal with a transition blends back over its transition. The overlay keeps the motions
+        //   under it, also for a motion that started on the joint in this frame.
+        // - Else the joint holds its pose until a motion or a new goal takes it. A motion that started on the joint
+        //   in this frame starts at the end of the goal, so it takes the held joint.
+        public void EndIK(object owner, float transition, bool overlay)
+        {
+            overlay &= transition > 0;
+            foreach (var (bone, state) in ikGoals)
+            {
+                if (state.Owner != owner)
+                {
+                    continue;
+                }
+
+                ikGoals.Remove(bone);
+                if (!posed)
+                {
+                    continue;
+                }
+
+                for (var j = 0; j < state.Chain.Length; j++)
+                {
+                    var joint = state.Chain[j];
+                    var motion = state.Motions[j];
+                    var newer = motion is { Updated: true } || overlay && motion != null;
+                    var release = newer || overlay;
+                    ikEnded[joint] = new EndedJoint(release ? owner : null,
+                        joint.IKRotation * joint.Rotation * joint.OriginalRotation,
+                        newer && state.Transitions[j] > 0 ? state.Transitions[j] : transition);
+                    if (motion != null && !release)
+                    {
+                        TakeHeldJoint(joint);
+                    }
+                }
+            }
+        }
+
+        // Blends back the joints of the ended goals of an owner. time is the time since the end of the goals. Returns
+        // false when no joint of the owner blends back any more.
+        public bool ReleaseIK(object owner, double time)
+        {
+            var blending = false;
+            foreach (var ended in ikEnded.Values)
+            {
+                if (ended.Owner == owner)
+                {
+                    ended.Release = TransitionWeight(time, ended.Duration);
+                    blending |= time < ended.Duration;
+                }
+            }
+
+            return blending;
+        }
+
+        // A motion takes a held joint. The held pose moves into the animation rotation of the joint, and the motions
+        // that ran before lose the rotation channel of the joint. The motions that started in this frame keep it and
+        // blend from the held pose over their transition. We infer this from the retail motion rules. There, a goal
+        // that is not an overlay frees the motions under it. Thus nothing is under the hold.
+        private void TakeHeldJoint(BoneInstance joint)
+        {
+            if (!ikEnded.TryGetValue(joint, out var ended) || ended.Owner != null)
+            {
+                return;
+            }
+
+            ikEnded.Remove(joint);
+            var held = Quaternion.Normalize(ended.Held * Quaternion.Inverse(joint.OriginalRotation));
+            foreach (var sc in RunningScripts)
+            {
+                for (var i = sc.Joints.Count - 1; i >= 0; i--)
+                {
+                    ref var j = ref sc.Joints[i];
+                    if (j.Bone != joint || j.IsTranslation)
+                    {
+                        continue;
+                    }
+
+                    if (sc.Updated)
+                    {
+                        sc.Joints.RemoveAt(i);
+                    }
+                    else
+                    {
+                        j.SourceRotation = held;
+                        j.FromPose = true;
+                    }
+                }
+            }
+
+            joint.Rotation = held;
+            joint.IKRotation = Quaternion.Identity;
+            driven.Add(joint);
         }
 
         // Turns the bones of the goals after the animation. modelToWorld is the world transform of the body.
         public void ApplyIK(Transform3D modelToWorld)
         {
-            if (!posed || (ikGoals.Count == 0 && ikBones.Count == 0))
+            if (!posed || (ikGoals.Count == 0 && ikEnded.Count == 0 && ikBones.Count == 0))
             {
                 return;
             }
@@ -726,6 +863,17 @@ namespace LibreLancer.Render
 
             ikBones.Clear();
             UpdateBones();
+
+            // The local rotation of an ended joint does not depend on the other joints, so the ended joints come
+            // first. Then the goals start from the pose that they give.
+            foreach (var (joint, ended) in ikEnded)
+            {
+                var animation = joint.Rotation * joint.OriginalRotation;
+                joint.IKRotation = Quaternion.Normalize(Quaternion.Slerp(ended.Held, animation, ended.Release)) *
+                                   Quaternion.Inverse(animation);
+                joint.Update(joint.Parent?.LocalTransform ?? Transform3D.Identity);
+                ikBones.Add(joint);
+            }
 
             // The head and the hands hang on body bones, so the body goals come first. Then a goal on a bone near
             // the root comes before a goal on a bone below it.
@@ -895,7 +1043,20 @@ namespace LibreLancer.Render
 
                 if (jm.Channel.HasOrientation)
                 {
+                    TakeHeldJoint(bone);
                     inst.Joints.Add(new ResolvedJoint(bone, i, false, driven.Contains(bone)));
+                    foreach (var state in ikGoals.Values)
+                    {
+                        var k = Array.IndexOf(state.Chain, bone);
+                        if (k >= 0)
+                        {
+                            state.Motions[k] ??= inst;
+                            if (transition > 0)
+                            {
+                                state.Transitions[k] = transition;
+                            }
+                        }
+                    }
                 }
 
                 if (jm.Channel.HasPosition)
