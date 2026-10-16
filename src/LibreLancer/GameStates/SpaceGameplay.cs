@@ -690,6 +690,7 @@ namespace LibreLancer
             Game.Keyboard.TextInput -= Game_TextInput;
             Game.Keyboard.KeyDown -= Keyboard_KeyDown;
             Game.Mouse.MouseDown -= Mouse_MouseDown;
+            Game.Mouse.MouseUp -= Mouse_MouseUp;
             foreach (var effect in transientShipEffects)
                 player?.ExtraRenderers.Remove(effect);
             transientShipEffects.Clear();

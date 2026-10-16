@@ -153,6 +153,9 @@ namespace LibreLancer.Server
             running = false;
             gameThread.Join();
             updateRunner.Dispose();
+            // Each world holds a physics world with its own threads. A stopped server frees them, also for a world
+            // that loads now.
+            Worlds?.Close();
         }
 
         public void AdminChanged(long id, bool isAdmin)

@@ -30,20 +30,45 @@ public class WorldProvider
 
     private ConcurrentDictionary<StarSystem, WorldState> worlds = new();
 
+    private readonly object closeLock = new();
+    private volatile bool closed;
+
+    // Finishes each world. After this, RequestWorld gives no world and LoadWorld makes none.
+    public void Close()
+    {
+        lock (closeLock)
+        {
+            if (closed) return;
+            closed = true;
+            foreach (var ws in worlds.Values) ws.World?.Finish();
+            worlds.Clear();
+        }
+    }
+
     private void LoadWorld(StarSystem system, out WorldState ws, PreloadObject[] preloads)
     {
         var x = new WorldState();
-        if (worlds.TryAdd(system, new WorldState()))
+        if (!closed && worlds.TryAdd(system, new WorldState()))
         {
             x.World = new ServerWorld(system, server);
             server.GameData.PreloadObjects(preloads, server.Resources);
-            x.Ready = true;
+            lock (closeLock)
+            {
+                // Close came during the load and did not see this world. It finishes here and is not ready.
+                if (closed)
+                {
+                    x.World.Finish();
+                    ws = x;
+                    return;
+                }
+                x.Ready = true;
+                worlds.AddOrUpdate(
+                    system,
+                    _ => x,
+                    (_, _) => x
+                );
+            }
             server.WorldReady(x.World);
-            worlds.AddOrUpdate(
-                system,
-                _ => x,
-                (_, _) => x
-            );
         }
         ws = x;
     }
@@ -55,6 +80,8 @@ public class WorldProvider
                 LoadWorld(system, out ws, preloads);
             while (!ws.Ready)
             {
+                if (closed)
+                    return;
                 await Task.Delay(33);
                 if (!worlds.TryGetValue(system, out ws))
                     LoadWorld(system, out ws, preloads);
