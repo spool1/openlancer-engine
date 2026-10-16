@@ -99,6 +99,7 @@ public class ThnSceneObject
         var self = GetTransform();
         Translate = self.Position;
         Rotate = self.Orientation;
+        Attachments.RemoveAll(x => x.Expired);
         UpdateEngineObjects();
     }
 
@@ -148,6 +149,8 @@ public class ThnAttachment(ThnAttachParent parent)
     public bool EntityRelative;
     public bool LookAt;
     public bool PathLookAt;
+    // The event has ended. ThnSceneObject.Update applies the attachment once more, then removes it.
+    public bool Expired;
 
     public ThnAttachParent Parent = parent;
 }

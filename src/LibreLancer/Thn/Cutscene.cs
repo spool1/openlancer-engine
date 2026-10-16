@@ -392,7 +392,6 @@ public class Cutscene : IDisposable
         }
 
         currentTime += delta;
-        foreach (var obj in sceneObjects.Values) obj.Update();
         if (text != null)
         {
             if (currentTime > text.Start)
@@ -407,6 +406,8 @@ public class Cutscene : IDisposable
             instance.Update(delta);
         }
 
+        // Apply the transforms after the events of this frame, so that actors move on the same frame as a camera cut.
+        foreach (var obj in sceneObjects.Values) obj.Update();
         camera.Update();
         if (Renderer != null)
         {

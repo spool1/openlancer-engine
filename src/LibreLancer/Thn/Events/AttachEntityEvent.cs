@@ -20,10 +20,9 @@ namespace LibreLancer.Thn.Events
      */
     public class AttachEntityEvent : ThnEvent
     {
-        private class AttachEntityProcessor(float duration, ThnSceneObject child, ThnAttachment attachment) : ThnEventProcessor
+        private class AttachEntityProcessor(float duration, ThnAttachment attachment) : ThnEventProcessor
         {
             public float Duration = duration;
-            public ThnSceneObject Child = child;
             public ThnAttachment Attachment = attachment;
 
             private double t;
@@ -33,7 +32,9 @@ namespace LibreLancer.Thn.Events
                 t += delta;
                 if (t > Duration)
                 {
-                    Child.Attachments.Remove(Attachment);
+                    // The scene object applies the attachment one more time, then removes it. A zero-duration
+                    // attach that starts after T=0 must still move the child.
+                    Attachment.Expired = true;
                     return false;
                 }
                 return true;
@@ -131,7 +132,7 @@ namespace LibreLancer.Thn.Events
                 Offset = Offset,
             };
             objA.Attachments.Add(attachment);
-            instance.AddProcessor(new AttachEntityProcessor(Duration, objA, attachment));
+            instance.AddProcessor(new AttachEntityProcessor(Duration, attachment));
         }
     }
 }

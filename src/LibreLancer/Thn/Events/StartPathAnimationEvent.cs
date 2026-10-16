@@ -53,14 +53,13 @@ namespace LibreLancer.Thn.Events
             }
 
             obj.Attachments.Add(attachment);
-            instance.AddProcessor(new PathAnimation(obj, attachment, parent, this));
+            instance.AddProcessor(new PathAnimation(attachment, parent, this));
         }
 
-        private class PathAnimation(ThnSceneObject child, ThnAttachment attachment,
+        private class PathAnimation(ThnAttachment attachment,
             ThnPathParent parent, StartPathAnimationEvent ev) : ThnEventProcessor
         {
             public StartPathAnimationEvent Event = ev;
-            public ThnSceneObject Child = child;
             public ThnAttachment Attachment = attachment;
             public ThnPathParent Parent = parent;
 
@@ -73,7 +72,8 @@ namespace LibreLancer.Thn.Events
                 Parent.T = pct;
                 if (time >= Event.Duration)
                 {
-                    Child.Attachments.Remove(Attachment);
+                    // The scene object applies the last path position, then removes the attachment.
+                    Attachment.Expired = true;
                     return false;
                 }
                 return true;
