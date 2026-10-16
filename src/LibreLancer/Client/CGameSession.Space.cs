@@ -675,7 +675,7 @@ public partial class CGameSession
                 spaceGameplay.world.SpawnTempFx(separationEffect, effectPosition);
                 if (isPlayer && OnUpdateInventory != null)
                 {
-                    uiActions.Enqueue(OnUpdateInventory);
+                    uiActions.Enqueue(InvokeUpdateInventory);
                 }
             }
         });

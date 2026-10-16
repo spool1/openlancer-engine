@@ -402,8 +402,22 @@ partial class SpaceGameplay
             ScanHandler = handler;
         }
 
-        public void OnUpdatePlayerInventory(Closure handler) =>
-            g.session.OnUpdateInventory += () => handler.Call();
+        private readonly System.Collections.Generic.List<Action> inventoryHandlers = [];
+
+        public void OnUpdatePlayerInventory(Closure handler)
+        {
+            Action update = () => handler.Call();
+            inventoryHandlers.Add(update);
+            g.session.OnUpdateInventory += update;
+        }
+
+        // The base UI replaces the Lua Game API, so the HUD handlers must not run after the space state ends.
+        internal void RemoveSessionHandlers()
+        {
+            foreach (var update in inventoryHandlers)
+                g.session.OnUpdateInventory -= update;
+            inventoryHandlers.Clear();
+        }
 
         public void JettisonInventoryItem(UIInventoryItem item, int count)
         {

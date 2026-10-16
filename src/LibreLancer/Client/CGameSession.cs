@@ -73,6 +73,8 @@ public partial class CGameSession : IClientPlayer
     public NetBaseNpcDialog? BaseNpcDialog;
 
     public Action? OnUpdateInventory;
+    // Queued as a call, not as the delegate, so that a handler removed before the queue runs is not called.
+    private void InvokeUpdateInventory() => OnUpdateInventory?.Invoke();
     public Action? OnUpdatePlayerShip;
     private bool paused;
     public string? PlayerBase;
@@ -288,7 +290,7 @@ public partial class CGameSession : IClientPlayer
         SetSelfLoadout(lastInventory.Loadout);
 
         if (OnUpdateInventory != null)
-            uiActions.Enqueue(OnUpdateInventory);
+            uiActions.Enqueue(InvokeUpdateInventory);
 
         if (spaceGameplay == null && OnUpdatePlayerShip != null)
             uiActions.Enqueue(OnUpdatePlayerShip);
@@ -306,7 +308,7 @@ public partial class CGameSession : IClientPlayer
         cargo?.Count = count;
 
         if (OnUpdateInventory != null)
-            uiActions.Enqueue(OnUpdateInventory);
+            uiActions.Enqueue(InvokeUpdateInventory);
     }
 
     public void DeleteSlot(int slot)
@@ -317,7 +319,7 @@ public partial class CGameSession : IClientPlayer
             Items.Remove(cargo);
 
         if (OnUpdateInventory != null)
-            uiActions.Enqueue(OnUpdateInventory);
+            uiActions.Enqueue(InvokeUpdateInventory);
     }
 
     public void UpdateWeaponGroups(NetWeaponGroup[] wg)

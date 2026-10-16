@@ -686,6 +686,7 @@ namespace LibreLancer
 
         protected override void OnUnload()
         {
+            uiApi.RemoveSessionHandlers();
             Game.Keyboard.TextInput -= Game_TextInput;
             Game.Keyboard.KeyDown -= Keyboard_KeyDown;
             Game.Mouse.MouseDown -= Mouse_MouseDown;
