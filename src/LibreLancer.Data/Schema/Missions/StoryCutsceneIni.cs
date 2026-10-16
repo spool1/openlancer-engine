@@ -41,7 +41,8 @@ public partial class StoryEncounter
     [Entry("offer")] public string? Offer;
     [Entry("decision")] public string? Decision;
     [Entry("accept")] public string? Accept;
-    [Entry("reject")] public string? Reject;
+    // Retail uses the key decline in 19 sections and the key reject in 4 sections.
+    [Entry("reject")] [Entry("decline")] public string? Reject;
     [Entry("mission_text_id")] public int MissionTextId;
     [Entry("nooffer_text_id")] public int NoOfferTextId;
     [Entry("relocate_player")] public string? RelocatePlayer;
