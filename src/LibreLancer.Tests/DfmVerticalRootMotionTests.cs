@@ -180,7 +180,7 @@ public class DfmVerticalRootMotionTests
             marker.Update();
         }
 
-        var head = (hardpoint.Transform * character.Object!.WorldTransform).Position;
+        var head = (hardpoint.Transform * character.Object!.Transform).Position;
         Assert.True(Vector3.Distance(head, marker.Translate) < 1e-4f, $"Expected {head}, got {marker.Translate}");
         Assert.True(marker.Translate.Y - seated > 0.3f, $"The head moves up only from {seated} to {marker.Translate.Y}");
     }

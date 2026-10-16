@@ -7,19 +7,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime;
-using System.Runtime.InteropServices;
 using LibreLancer.Client;
 using LibreLancer.Data.GameData;
-using LibreLancer.ImUI.NodeEditor;
 using LibreLancer.Input;
 using LibreLancer.Interface;
-using LibreLancer.Items;
 using LibreLancer.Net;
 using LibreLancer.Net.Protocol;
-using LibreLancer.Render;
 using LibreLancer.Resources;
 using LibreLancer.Thn;
-using LiteNetLib;
 using WattleScript.Interpreter;
 using DisconnectReason = LibreLancer.Net.DisconnectReason;
 
@@ -391,7 +386,7 @@ namespace LibreLancer
 
             private int delIndex = -1;
 
-            public void DeleteCharacter()
+            public void DeleteCharacter(Closure onResult)
             {
                 delIndex = cselInfo.Selected;
                 netSession.RpcServer.DeleteCharacter(cselInfo.Selected).ContinueWith((t) =>
@@ -404,6 +399,7 @@ namespace LibreLancer
                             delIndex = -1;
                         });
                     }
+                    state.Game.QueueUIThread(() => onResult.Call(t.Result));
                 });
             }
 
@@ -430,19 +426,24 @@ namespace LibreLancer
 
             public void ConnectAddress(string address) => netClient!.Connect(address);
 
-            public void NewCharacter(string name, int index, Closure onError)
+            public void NewCharacter(string name, int index, Closure onResult)
             {
                 FLLog.Info("Net", $"Requesting new char: `{name}`");
                 netSession.RpcServer.CreateNewCharacter(name, index).ContinueWith((task) =>
                 {
-                    if (!task.Result) state.Game.QueueUIThread(() => onError.Call());
+                    state.Game.QueueUIThread(() => onResult.Call(task.Result));
                 });
             }
 
             public void StopNetworking()
             {
-                netClient?.Shutdown();
-                netClient = null;
+                if (netClient != null)
+                {
+                    netClient.Disconnected -= NetClientOnDisconnected;
+                    netClient.Shutdown();
+                    netClient = null;
+                }
+
             }
 
             public override void Exit() => state.FadeOut(0.2, () => state.Game.Exit());

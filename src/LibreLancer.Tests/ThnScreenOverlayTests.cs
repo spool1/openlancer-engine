@@ -324,8 +324,8 @@ public class ThnScreenOverlayTests
                 }
 
                 var obj = replay[entity];
-                var transform = obj.Object!.WorldTransform.Matrix();
-                renderers[i].Update(Frame, transform.Translation, transform);
+                var transform = obj.Object!.Transform;
+                renderers[i].Update(Frame, transform);
                 if (Math.Abs(time - check) < Frame / 2)
                 {
                     obj.UpdateScreenOverlay(camera);

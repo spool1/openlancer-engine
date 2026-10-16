@@ -32,23 +32,22 @@ namespace LibreLancer.Utf.Cmp
         {
             get
             {
-                field ??= models[fileName];
+                if (field == null)
+                {
+                    models.TryGetValue(fileName, out field);
+                }
                 return field;
             }
         }
 
-        private bool cameraTried = false;
         public CmpCameraInfo? Camera
         {
             get
             {
-                if (field != null || cameraTried)
+                if (field == null)
                 {
-                    return field;
+                    cameras.TryGetValue(fileName, out field);
                 }
-
-                cameraTried = true;
-                cameras.TryGetValue(fileName, out field);
 
                 return field;
             }

@@ -33,7 +33,7 @@ namespace LibreLancer.Utf
         }
         public override void Update(ChannelFloat distance, Quaternion quat)
         {
-            throw new NotImplementedException();
+            UpdateError();
         }
     }
 }

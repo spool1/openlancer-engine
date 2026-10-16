@@ -15,8 +15,8 @@ namespace LibreLancer.Utf
         private const int STR_LENGTH = 64;
         public string ParentName { get; set; } = null!;
         public string ChildName { get; set; } = null!;
-        public Vector3 Origin { get; set; }
-        public Quaternion Rotation { get; set; }
+        public Vector3 Origin;
+        public Quaternion Rotation;
 
         public abstract Transform3D LocalTransform { get; }
 
@@ -61,5 +61,15 @@ namespace LibreLancer.Utf
         }
         public abstract void Reset();
         public abstract void Update(ChannelFloat distance, Quaternion quat);
+
+        private bool usedError = false;
+
+        protected void UpdateError()
+        {
+            if (usedError)
+                return;
+            usedError = true;
+            FLLog.Error("Cmp", $"Tried to move construct {ChildName} with unsupported animation");
+        }
     }
 }

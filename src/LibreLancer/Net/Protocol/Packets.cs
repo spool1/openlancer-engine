@@ -71,10 +71,6 @@ namespace LibreLancer.Net.Protocol
 #endif
         static Packets()
         {
-            // Authentication
-            Register<GuidAuthenticationPacket>(GuidAuthenticationPacket.Read);
-            Register<AuthenticationReplyPacket>(AuthenticationReplyPacket.Read);
-            Register<LoginSuccessPacket>(LoginSuccessPacket.Read);
             // Menu
             Register<OpenCharacterListPacket>(OpenCharacterListPacket.Read);
             Register<NewCharacterDBPacket>(NewCharacterDBPacket.Read);
@@ -85,42 +81,6 @@ namespace LibreLancer.Net.Protocol
             // Protocol
             GeneratedProtocol.RegisterPackets();
         }
-    }
-
-    public class LoginSuccessPacket : IPacket
-    {
-        public static object Read(PacketReader message)
-        {
-            return new LoginSuccessPacket();
-        }
-
-        public void WriteContents(PacketWriter outPacket)
-        {
-        }
-    }
-    public class GuidAuthenticationPacket : IPacket
-    {
-        public static GuidAuthenticationPacket Read(PacketReader message)
-        {
-            return new GuidAuthenticationPacket() { };
-        }
-        public void WriteContents(PacketWriter outPacket)
-        {
-        }
-    }
-
-    public class AuthenticationReplyPacket : IPacket
-    {
-        public Guid Guid;
-        public static AuthenticationReplyPacket Read(PacketReader message)
-        {
-            return new AuthenticationReplyPacket() { Guid = message.GetGuid() };
-        }
-        public void WriteContents(PacketWriter outPacket)
-        {
-            outPacket.Put(Guid);
-        }
-
     }
 
     [Flags]

@@ -6,7 +6,7 @@ namespace LibreLancer.Net;
 public enum DisconnectReason : byte
 {
     Unknown = 0,
-    TokenRequired = 1,
+    AuthenticationInfo = 1,
     ConnectionError = 2,
     LoginError = 3,
     Banned = 4,

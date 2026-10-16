@@ -19,6 +19,8 @@ namespace LibreLancer.Net
         //NetPeer already includes IPv4/6 header size in reported Mtu
         public int MaxSequencedSize => (Client?.Mtu ?? 1024) - 4;
 
+        public bool Connected => Client.ConnectionState != ConnectionState.Disconnected;
+
         private NetDataWriter writer = new();
         private Lock writerLock = new();
 

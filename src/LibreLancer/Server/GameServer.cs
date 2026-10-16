@@ -31,6 +31,9 @@ namespace LibreLancer.Server
         public string ServerDescription = "Description of the server is here.";
         public string ServerNews = "News of the server goes here";
         public string? LoginUrl = null;
+        public int MaxAccountCharacters = 10;
+        public bool EnableRateLimiting = true;
+        public bool UseDatabase = true;
 
         public bool SendDebugInfo = false;
         public string DebugInfo { get; private set; } = null!;
@@ -45,6 +48,7 @@ namespace LibreLancer.Server
         public ResourceManager Resources;
         public WorldProvider Worlds = null!;
         public ServerPerformance PerformanceStats = null!;
+        public RateLimiting Limits = null!;
 
         public BaselinePriceBundle BaselineGoodPrices;
 
@@ -55,6 +59,7 @@ namespace LibreLancer.Server
 
         public List<Player> ConnectedPlayers = [];
         public Player? LocalPlayer;
+        public Guid ServerGuid;
 
         public ConcurrentHashSet<long> CharactersInUse = [];
 
@@ -249,10 +254,14 @@ namespace LibreLancer.Server
         private int slowCount = 0;
         private ParallelActionRunner updateRunner = null!;
 
+        private Stopwatch serverTiming = null!;
+
+
         private void Process(TimeSpan time, TimeSpan totalTime, uint currentTick, int step)
         {
             CurrentTick = currentTick;
             var startTime = serverTiming.Elapsed;
+            Limits.Update();
             while (!localPackets.IsEmpty && localPackets.TryDequeue(out var local))
                 LocalPlayer!.ProcessPacketDirect(local);
             if (worldRequests.Count > 0 && worldRequests.TryDequeue(out var a))
@@ -322,8 +331,6 @@ namespace LibreLancer.Server
             if (!running) processingLoop.Stop();
         }
 
-        private Stopwatch serverTiming = null!;
-
         private void GameThread()
         {
             if (needLoadData)
@@ -338,13 +345,22 @@ namespace LibreLancer.Server
             InitBaselinePrices();
             Worlds = new WorldProvider(this);
             serverTiming = Stopwatch.StartNew();
-            Database = new ServerDatabase(this);
+            Limits = new(serverTiming, EnableRateLimiting);
+            if (UseDatabase)
+            {
+                Database = new ServerDatabase(this);
+                var sg = Database.GetDbIdentifier();
+                sg.Wait();
+                ServerGuid = sg.Result;
+                if (sg.Exception != null)
+                    throw sg.Exception;
+            }
             Listener?.Start();
             updateRunner = new ParallelActionRunner(ThreadCount, "Server Update Worker");
             processingLoop = new FixedTimestepLoop(Process);
             processingLoop.Start();
             Listener?.Stop();
-            Database.Dispose();
+            Database?.Dispose();
             Database = null!;
         }
     }

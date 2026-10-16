@@ -5,6 +5,7 @@ using System.Numerics;
 using LibreLancer.Client.Components;
 using LibreLancer.Render;
 using LibreLancer.World;
+using LibreLancer.World.Equipments;
 
 namespace LibreLancer.Thn;
 
@@ -24,7 +25,7 @@ public class ThnSceneObject
     public ThnSound? Sound;
     public bool Animating = false;
     public bool PosFromObject = false;
-    public CEngineComponent? Engine;
+    public Engine? Engine;
     // The end of the last START_PSYS on this entity, in whole milliseconds of script time.
     internal long PSysEnd = long.MinValue;
     public int MonitorIndex = 0;
@@ -42,7 +43,7 @@ public class ThnSceneObject
     {
         if (PosFromObject)
         {
-            return Object!.WorldTransform;
+            return Object!.Transform;
         }
 
         Transform3D self = new(Translate, Rotate);
@@ -146,11 +147,11 @@ public class ThnSceneObject
 
             if (HpMount == null)
             {
-                Object.SetLocalTransform(new Transform3D(Translate, Rotate));
+                Object.SetTransform(new Transform3D(Translate, Rotate));
             }
             else
             {
-                Object.SetLocalTransform(HpMount.Transform.Inverse() * new Transform3D(Translate, Rotate));
+                Object.SetTransform(HpMount.Transform.Inverse() * new Transform3D(Translate, Rotate));
             }
         }
 
@@ -238,6 +239,8 @@ public class ThnPathParent(ThnSceneObject Path)
 public class ThnObjectParent(ThnSceneObject obj, IRenderHardpoint? hardpoint, RigidModelPart? part)
     : ThnAttachParent
 {
+    public Transform3D ChildOffset = Transform3D.Identity;
+
     // True when the parent is the object itself, not a hardpoint or a part of it.
     internal bool IsRootOf(ThnSceneObject other) => obj == other && hardpoint == null && part == null;
 
@@ -245,15 +248,15 @@ public class ThnObjectParent(ThnSceneObject obj, IRenderHardpoint? hardpoint, Ri
     {
         if (part != null)
         {
-            return part.LocalTransform * GetModelTransform();
+            return ChildOffset * part.LocalTransform * GetModelTransform();
         }
 
         if (hardpoint != null)
         {
-            return hardpoint.Transform * GetModelTransform();
+            return ChildOffset * hardpoint.Transform * GetModelTransform();
         }
 
-        return obj.GetTransform();
+        return ChildOffset * obj.GetTransform();
     }
 
     // A bone or a hardpoint of a character has no pose before the first animation update of the character. Until

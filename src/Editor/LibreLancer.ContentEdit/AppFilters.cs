@@ -22,6 +22,10 @@ public class AppFilters
             new FileFilter("Ale Files", "ale")
         );
 
+        public static readonly FileDialogFilters AnmFilters = new(
+            new FileFilter("Anm Files", "anm")
+        );
+
         public static readonly FileDialogFilters IniFilters = new FileDialogFilters(
             new FileFilter("Ini Files", "ini")
         );
@@ -79,5 +83,9 @@ public class AppFilters
             new FileFilter("Thorn Files", "thn", "lua"),
             new FileFilter("Thn Files", "thn"),
             new FileFilter("Lua Files", "lua")
+        );
+
+        public static readonly FileDialogFilters TxtFilter = new FileDialogFilters(
+            new FileFilter("Text Files", "txt")
         );
 }

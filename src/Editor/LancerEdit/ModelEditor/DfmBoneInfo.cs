@@ -1,0 +1,30 @@
+using ImGuiNET;
+using LibreLancer.ImUI;
+using LibreLancer.Render;
+
+namespace LancerEdit.ModelEditor;
+
+public class DfmBoneInfo : PopupWindow
+{
+    private BoneInstance instance;
+    public DfmBoneInfo(BoneInstance inst)
+    {
+        this.instance = inst;
+    }
+
+    public override string Title
+    {
+        get => instance.Name;
+        set { }
+    }
+    public override void Draw(bool appearing)
+    {
+        ImGui.Text("InvBindPose");
+        ImGui.Text(instance.InvBindPose.ToString().Replace("} {", "}\n{"));
+        ImGui.Text("");
+        ImGui.Text("LocalTransform (pos + euler)");
+        var tr = instance.LocalTransform;
+        ImGui.Text(tr.Position.ToString());
+        ImGui.Text(tr.GetEulerDegrees().ToString());
+    }
+}

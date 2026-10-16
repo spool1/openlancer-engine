@@ -85,7 +85,7 @@ public class RoomRtcFixtureTests
         bound.Update();
 
         Assert.Same(bound, objects[entity.Name]);
-        Assert.Equal(marker.Translate, bound.Object!.LocalTransform.Position);
+        Assert.Equal(marker.Translate, bound.Object!.Transform.Position);
     }
 
     // The bound actor of li0101_fix_bartender in s003x. It has the costume and the voice of the room NPC (mbases.ini),
@@ -111,7 +111,7 @@ public class RoomRtcFixtureTests
         Assert.Equal(("Char_li_bartender_Fixture", "rvp101", "bartender"), (actor.Name, actor.Voice, actor.Actor));
         Assert.Same(entity, actor.Entity);
         Assert.Equal((entity.Position.Value, entity.Rotation), (actor.Translate, actor.Rotate));
-        Assert.Equal(new Transform3D(entity.Position.Value, entity.Rotation), actor.Object!.LocalTransform);
+        Assert.Equal(new Transform3D(entity.Position.Value, entity.Rotation), actor.Object!.Transform);
         var skeleton = Assert.IsType<CharacterRenderer>(actor.Object.RenderComponent).Skeleton;
         Assert.Equal(0.75f, skeleton.FloorHeight);
         Assert.NotNull(skeleton.HeadSkinning);

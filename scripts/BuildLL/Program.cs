@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using static Bullseye.Targets;
 using static BuildLL.Runtime;
 
@@ -522,8 +523,19 @@ namespace BuildLL
                 }
                 //Timestamp
                 var unixTime = (long)((Invoked - new DateTime(1970, 1, 1, 0, 0, 0)).TotalSeconds);
-                File.WriteAllText("packaging/packages/timestamp", unixTime.ToString());
+                var manifest = new JsonUpdates();
+                manifest.Builds["linux-x64"] =
+                    new("https://librelancer.net/builds/librelancer-sdk-daily-ubuntu-amd64.tar.gz", unixTime);
+                manifest.Builds["win-x64"] =
+                    new("https://librelancer.net/builds/librelancer-sdk-daily-win64.zip", unixTime);
+                File.WriteAllBytes("packaging/packages/daily.json", JsonSerializer.SerializeToUtf8Bytes(manifest));
+                File.WriteAllText("packaging/packages/windows-timestamp.txt", unixTime.ToString());
             });
         }
+    }
+    class JsonUpdates
+    {
+        public record Build(string URL, long Timestamp);
+        public Dictionary<string, Build> Builds { get; set; } = new Dictionary<string, Build>();
     }
 }

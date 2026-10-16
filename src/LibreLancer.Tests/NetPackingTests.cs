@@ -394,7 +394,7 @@ public class NetPackingTests
         var up = new UpdatePacker();
         var obj = new GameObject();
         var pobj = new GameObject();
-        var plr = new Player(null!, null!, Guid.Empty);
+        var plr = new Player(null!, null!, Guid.Empty, default);
         var spc = new SPlayerComponent(plr, pobj);
 
         var auth = new PlayerAuthState();

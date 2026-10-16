@@ -365,7 +365,7 @@ public class ThnAttachFlagsTests
         // transform.
         float Distance()
         {
-            var model = trent.WorldTransform;
+            var model = trent.Transform;
             model.Position = model.Position with { Y = skeleton.ModelHeight };
             return Vector3.Distance(replay[child].GetTransform().Position,
                 (skeleton.Hardpoints[hardpoint].Transform * model).Position);
@@ -404,7 +404,7 @@ public class ThnAttachFlagsTests
             var camera = replay["Cam_H_CU_Static_Trent"];
             var trent = replay["Char_Trent"].Object!;
             var skeleton = ((CharacterRenderer)trent.RenderComponent!).Skeleton;
-            var head = (skeleton.Hardpoints["hp_head"].Transform * trent.WorldTransform).Position;
+            var head = (skeleton.Hardpoints["hp_head"].Transform * trent.Transform).Position;
             var view = Vector3.Transform(head - camera.Translate, Quaternion.Inverse(camera.Rotate));
             var elevation = MathF.Atan2(view.Y, -view.Z) * 180 / MathF.PI;
             var azimuth = MathF.Atan2(view.X, -view.Z) * 180 / MathF.PI;

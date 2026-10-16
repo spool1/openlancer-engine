@@ -194,6 +194,14 @@ public class ImportedModel(string name, string copyright, ImportedModelNode root
         return true;
     }
 
+    static bool TryGetVector3(ModelNode node, string name, out Vector3 val)
+    {
+        val = Vector3.Zero;
+        if (!node.Properties.TryGetValue(name, out var pv))
+            return false;
+        return pv.AsVector3(out val);
+    }
+
     static (AbstractConstruct, bool) GetConstruct(ModelNode node, string childName, string parentName)
     {
         var rot = node.Transform.ExtractRotation();
@@ -217,7 +225,8 @@ public class ImportedModel(string name, string copyright, ImportedModelNode root
             {
 
                 if(node.Properties.TryGetValue("offset", out pv))  pv.AsVector3(out offset);
-                if (!node.Properties.TryGetValue("axis_rotation", out pv) || !pv.AsVector3(out axis))
+                if (!TryGetVector3(node, "axis_rotation", out axis) &&
+                    !TryGetVector3(node, "axis", out axis))
                     axis = Vector3.UnitY;
                 else
                     propsSet = true;
@@ -249,7 +258,8 @@ public class ImportedModel(string name, string copyright, ImportedModelNode root
                     propsSet = true;
                     pv.AsVector3(out offset);
                 }
-                if (!node.Properties.TryGetValue("axis_translation", out pv) || !pv.AsVector3(out axis))
+                if (!TryGetVector3(node, "axis_translation", out axis) &&
+                    !TryGetVector3(node, "axis", out axis))
                     axis = Vector3.UnitY;
                 else
                     propsSet = true;
@@ -295,8 +305,8 @@ public class ImportedModel(string name, string copyright, ImportedModelNode root
                 {
                     Rotation = rot, Origin = origin,
                     Offset = offset,
-                    Min1 = minaxis.X, Min2 = minaxis.Y, Min3 = minaxis.Z,
-                    Max1 = maxaxis.X, Max2 = maxaxis.Y, Max3 = maxaxis.Z,
+                    Min = minaxis,
+                    Max = maxaxis,
                     ParentName = parentName,
                     ChildName = childName
                 }, propsSet);

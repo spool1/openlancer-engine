@@ -234,7 +234,7 @@ public class AleRetailEffectTests
         for (var frame = 0; frame < frames; frame++)
         {
             script.Update(PSysStep);
-            renderer.Update(PSysStep, Vector3.Zero, Matrix4x4.Identity);
+            renderer.Update(PSysStep, Transform3D.Identity);
         }
     }
 

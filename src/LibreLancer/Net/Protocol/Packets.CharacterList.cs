@@ -122,7 +122,8 @@ namespace LibreLancer.Net.Protocol
                 {
                     ServerName = message.GetString()!,
                     ServerDescription = message.GetString()!,
-                    ServerNews = message.GetString()!
+                    ServerNews = message.GetString()!,
+                    CharacterLimit = LNetConst.CharsPerAccount
                 }
             };
 

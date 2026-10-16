@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using ImGuiNET;
 using LancerEdit.GameContent.Lookups;
+using LancerEdit.ModelEditor;
 using LibreLancer;
 using LibreLancer.ImUI;
 using LibreLancer.Render;
@@ -71,14 +72,14 @@ public sealed class HardpointJoinPopup : PopupWindow
             float scale = 5;
             if (parent.RenderComponent is ModelRenderer mr)
                 scale = mr.Model.GetRadius() / GizmoRender.ScaleFactor;
-            pv.Add(new(previewParent.Transform * parent.LocalTransform, scale));
+            pv.Add(new(previewParent.Transform * parent.Transform, scale));
         }
         if (previewChild != null)
         {
             float scale = 5;
             if (child.RenderComponent is ModelRenderer mr)
                 scale = mr.Model.GetRadius() / GizmoRender.ScaleFactor;
-            pv.Add(new(previewChild.Transform * child.LocalTransform, scale));
+            pv.Add(new(previewChild.Transform * child.Transform, scale));
         }
         drawPreviews(pv.ToArray());
     }

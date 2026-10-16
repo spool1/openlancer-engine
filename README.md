@@ -1,4 +1,4 @@
-# Librelancer [![](https://img.shields.io/badge/chat-on%20discord-green.svg)](https://discord.gg/QW2vzxx)
+# Librelancer [![](https://img.shields.io/badge/chat-on%20discord-green.svg)](https://discord.gg/THJxK9Vuyu)
 A re-implementation of the 2003 Space Game [Freelancer](https://en.wikipedia.org/wiki/Freelancer_(video_game)) in C# and OpenGL.
 
 Currently running on Windows and Linux (macOS pending maintainer)

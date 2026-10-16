@@ -568,7 +568,7 @@ public class ThnStartIKTests
             else
             {
                 animation.Update(0, null!);
-                AssertNear(World, trent.Object!.WorldTransform);
+                AssertNear(World, trent.Object!.Transform);
             }
         }
 

@@ -221,7 +221,8 @@ public class IdsSearch : PopupWindow
 
     private string EllipseIfNeeded(string s)
     {
-        if (s.Length > MAX_PREV_LEN) s = s.Substring(0, MAX_PREV_LEN) + "...";
-        return s.Replace("%", "%%");
+        if (s.Length > MAX_PREV_LEN)
+            return s.Substring(0, MAX_PREV_LEN) + "...";
+        return s;
     }
 }

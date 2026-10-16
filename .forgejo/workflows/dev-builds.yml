@@ -1,0 +1,43 @@
+name: Development builds
+
+concurrency:
+  group: devbuilds
+  cancel-in-progress: true
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: librelancer-runner
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+    - name: Install native dependencies
+      run: apt-get update && apt-get install -y libgtk-3-dev g++-mingw-w64-x86-64 cmake libopenal1 build-essential zip
+    - name: Build
+      run: ./build.sh -j$(nproc) LinuxDaily --with-win64
+    - name: Upload Build
+      env:
+        SSH_UPLOAD_KEY: ${{ secrets.SSH_UPLOAD_KEY }}
+      run: |
+        echo "$SSH_UPLOAD_KEY" | base64 -d > /tmp/upload_key
+        chmod 0600 /tmp/upload_key
+        cd packaging/packages
+        scp -i /tmp/upload_key \
+        -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        librelancer-daily-ubuntu-amd64.tar.gz \
+        librelancer-daily-win64.zip \
+        librelancer-sdk-daily-ubuntu-amd64.tar.gz \
+        librelancer-sdk-daily-win64.zip \
+        windows-timestamp.txt \
+        daily.json \
+        webupload@librelancer.net:/var/www/librelancer.net/builds/
+        rm /tmp/upload_key

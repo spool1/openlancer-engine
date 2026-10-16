@@ -11,10 +11,10 @@ namespace LibreLancer.Utf
 {
     public class RevConstruct : AbstractConstruct
     {
-        public Vector3 Offset { get; set; }
-        public Vector3 AxisRotation { get; set; }
-        public float Min { get; set; }
-        public float Max { get; set; }
+        public Vector3 Offset;
+        public Vector3 AxisRotation;
+        public float Min;
+        public float Max;
 
         private Quaternion currentTransform = Quaternion.Identity;
 

@@ -25,6 +25,8 @@ namespace LibreLancer.Database
         public DbSet<Character> Characters { get; set; }
         public DbSet<Account> Accounts { get; set; }
 
+        public DbSet<DatabaseInfo> DatabaseInfo { get; set; }
+
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         {
             configurationBuilder
@@ -71,6 +73,9 @@ namespace LibreLancer.Database
                 .HasForeignKey(x => x.CharacterId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .IsRequired();
+
+            modelBuilder.Entity<DatabaseInfo>()
+                .HasKey(x => x.Id);
         }
 
         public async Task InsertVisitHistoryNonConflicting(long characterId, IEnumerable<VisitHistoryInput> history)

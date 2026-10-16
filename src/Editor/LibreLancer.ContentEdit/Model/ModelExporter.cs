@@ -17,7 +17,8 @@ namespace LibreLancer.ContentEdit.Model;
 
 public static class ModelExporter
 {
-    public static EditResult<SimpleMesh.Model> Export(CmpFile cmp, SurFile sur, ModelExporterSettings settings, ResourceManager resources)
+    public static EditResult<SimpleMesh.Model> Export(CmpFile cmp, SurFile sur, ModelExporterSettings settings,
+        ResourceManager resources)
     {
         //Build tree
         ExportModelNode? rootModel = null;
@@ -27,7 +28,7 @@ public static class ModelExporter
             {
                 rootModel = new ExportModelNode(p.ObjectName)
                 {
-                    Model = p.Model!,
+                    Model = p.Model, Camera = p.Camera
                 };
                 break;
             }
@@ -51,7 +52,8 @@ public static class ModelExporter
                     var child = new ExportModelNode(mdl.Name)
                     {
                         Construct = part.Construct,
-                        Model = part.Model!,
+                        Model = part.Model,
+                        Camera = part.Camera,
                         Name = part.ObjectName,
                     };
                     mdl.Children.Add(child);
@@ -65,8 +67,9 @@ public static class ModelExporter
             infiniteDetect++;
             if (infiniteDetect > 100000) return EditResult<SimpleMesh.Model>.Error("Infinite cmp loop detected");
         }
+
         //Export model
-        var output = new SimpleMesh.Model() {Materials = new Dictionary<string, Material>()};
+        var output = new SimpleMesh.Model() { Materials = new Dictionary<string, Material>() };
         var ag = new List<Geometry>();
         var processed = ProcessNode(rootModel, output, settings, resources, sur, ag, false);
         if (processed.IsError)
@@ -76,22 +79,27 @@ public static class ModelExporter
         if (cmp.Animation != null && settings.IncludeAnimations)
         {
             var animations = new List<Animation>();
-            if (cmp.Animation.Scripts.Count > 0) {
+            if (cmp.Animation.Scripts.Count > 0)
+            {
                 animations.Add(AnimationConversion.DefaultAnimation(cmp));
             }
+
             foreach (var anm in cmp.Animation.Scripts.Values)
             {
                 animations.Add(AnimationConversion.ExportAnimation(cmp, anm));
             }
+
             output.Animations = animations.ToArray();
         }
-        if(settings.IncludeTextures)
+
+        if (settings.IncludeTextures)
             output.Images = MaterialExporter.ExportImages(resources, output.Materials);
         return output.AsResult();
     }
 
 
-    public static EditResult<SimpleMesh.Model> Export(ModelFile mdl, SurFile sur, ModelExporterSettings settings, ResourceManager resources)
+    public static EditResult<SimpleMesh.Model> Export(ModelFile mdl, SurFile sur, ModelExporterSettings settings,
+        ResourceManager resources)
     {
         var exportNode = new ExportModelNode("Root")
         {
@@ -99,13 +107,13 @@ public static class ModelExporter
             Construct = null,
         };
         var ag = new List<Geometry>();
-        var output = new SimpleMesh.Model() {Materials = new Dictionary<string, Material>()};
+        var output = new SimpleMesh.Model() { Materials = new Dictionary<string, Material>() };
         var processed = ProcessNode(exportNode, output, settings, resources, sur, ag, true);
         if (processed.IsError)
             return new EditResult<SimpleMesh.Model>(null, processed.Messages);
         output.Geometries = ag.ToArray();
         output.Roots = new[] { processed.Data };
-        if(settings.IncludeTextures)
+        if (settings.IncludeTextures)
             output.Images = MaterialExporter.ExportImages(resources, output.Materials);
         return output.AsResult();
     }
@@ -147,6 +155,7 @@ public static class ModelExporter
                 {
                     geo.Vertices.Position[j] = Vector3.Transform(geo.Vertices.Position[j], inverse);
                 }
+
                 var hn = new ModelNode();
                 hn.Geometry = geo;
                 hn.Name = $"{def.Name}.{i}$hull";
@@ -155,10 +164,12 @@ public static class ModelExporter
                 n.Children.Add(hn);
             }
         }
+
         return n;
     }
 
-    static EditResult<ModelNode> ProcessNode(ExportModelNode node, SimpleMesh.Model dest, ModelExporterSettings settings, ResourceManager res, SurFile? sur, List<Geometry> allGeos, bool is3db)
+    static EditResult<ModelNode> ProcessNode(ExportModelNode node, SimpleMesh.Model dest,
+        ModelExporterSettings settings, ResourceManager res, SurFile? sur, List<Geometry> allGeos, bool is3db)
     {
         var sm = new ModelNode();
         sm.Name = node.Name;
@@ -166,10 +177,12 @@ public static class ModelExporter
         {
             sm.Transform = new Transform3D(node.Construct.Origin, node.Construct.Rotation).Matrix();
         }
+
         if (node.Construct is FixConstruct)
         {
             sm.Properties["construct"] = "fix";
         }
+
         if (node.Construct is RevConstruct rev)
         {
             sm.Properties["construct"] = "rev";
@@ -178,6 +191,7 @@ public static class ModelExporter
             sm.Properties["offset"] = rev.Offset;
             sm.Properties["axis_rotation"] = rev.AxisRotation;
         }
+
         if (node.Construct is PrisConstruct pris)
         {
             sm.Properties["construct"] = "pris";
@@ -186,73 +200,93 @@ public static class ModelExporter
             sm.Properties["offset"] = pris.Offset;
             sm.Properties["axis_translation"] = pris.AxisTranslation;
         }
+
         if (node.Construct is SphereConstruct sphere)
         {
             sm.Properties["construct"] = "sphere";
-            sm.Properties["min"] = new Vector3(sphere.Min1, sphere.Min2, sphere.Min3);
-            sm.Properties["max"] = new Vector3(sphere.Max1, sphere.Max2, sphere.Max3);
+            sm.Properties["min"] = sphere.Min;
+            sm.Properties["max"] = sphere.Max;
             sm.Properties["offset"] = sphere.Offset;
         }
+
         if (node.Construct is LooseConstruct)
         {
             sm.Properties["construct"] = "loose";
         }
-        var l0 = GeometryFromRef(node.Name, 0, node.Model!.Levels[0]!, dest.Materials, allGeos, res);
-        if (l0.IsError)
-            return EditResult<ModelNode>.Error($"Unable to export node {node.Name} (Level 0)", l0.Messages);
-        sm.Geometry = l0.Data;
-        if (settings.IncludeLods)
+
+        if (node.Camera != null)
         {
-            for (int i = 1; i < node.Model.Levels.Length; i++)
-            {
-                var lod = new ModelNode() {Name = node.Name + "$lod" + i};
-                var lodRes = GeometryFromRef(node.Name, i, node.Model.Levels[i]!, dest.Materials, allGeos, res);
-                if (lodRes.IsError)
-                    return EditResult<ModelNode>.Error($"Unable to export node {node.Name} (Level {i})",
-                        lodRes.Messages);
-                lod.Geometry = lodRes.Data;
-                sm.Children.Add(lod);
-            }
+            sm.Properties["camera"] = true;
+            sm.Properties["fovx"] = node.Camera.Fovx;
+            sm.Properties["fovy"] = node.Camera.Fovy;
+            sm.Properties["znear"] = node.Camera.Znear;
+            sm.Properties["zfar"] = node.Camera.Zfar;
         }
-        if (settings.IncludeHardpoints)
+        else if (node.Model != null)
         {
-            var id = is3db ? 0 : CrcTool.FLModelCrc(node.Name);
-            foreach (var hp in node.Model.Hardpoints)
+            var l0 = GeometryFromRef(node.Name, 0, node.Model!.Levels[0]!, dest.Materials, allGeos, res);
+            if (l0.IsError)
+                return EditResult<ModelNode>.Error($"Unable to export node {node.Name} (Level 0)", l0.Messages);
+            sm.Geometry = l0.Data;
+            if (settings.IncludeLods)
             {
-                sm.Children.Add(FromHardpoint(hp, id, res, dest.Materials, allGeos, settings.IncludeHulls ? sur : null));
-            }
-        }
-        if (settings.IncludeHulls && sur != null)
-        {
-            var hulls = sur.GetMesh(new ConvexShapeId(is3db ? 0 : CrcTool.FLModelCrc(node.Name), 0));
-            for (int i = 0; i < hulls.Length; i++)
-            {
-                var surnode = new ModelNode
+                for (int i = 1; i < node.Model.Levels.Length; i++)
                 {
-                    Geometry = GeometryFromSur(node.Name + "." + i + "$hull", hulls[i], res, dest.Materials, allGeos),
-                    Name = node.Name + "." + i + "$hull",
-                    Properties =
+                    var lod = new ModelNode() { Name = node.Name + "$lod" + i };
+                    var lodRes = GeometryFromRef(node.Name, i, node.Model.Levels[i]!, dest.Materials, allGeos, res);
+                    if (lodRes.IsError)
+                        return EditResult<ModelNode>.Error($"Unable to export node {node.Name} (Level {i})",
+                            lodRes.Messages);
+                    lod.Geometry = lodRes.Data;
+                    sm.Children.Add(lod);
+                }
+            }
+
+            if (settings.IncludeHardpoints)
+            {
+                var id = is3db ? 0 : CrcTool.FLModelCrc(node.Name);
+                foreach (var hp in node.Model.Hardpoints)
+                {
+                    sm.Children.Add(FromHardpoint(hp, id, res, dest.Materials, allGeos,
+                        settings.IncludeHulls ? sur : null));
+                }
+            }
+
+            if (settings.IncludeHulls && sur != null)
+            {
+                var hulls = sur.GetMesh(new ConvexShapeId(is3db ? 0 : CrcTool.FLModelCrc(node.Name), 0));
+                for (int i = 0; i < hulls.Length; i++)
+                {
+                    var surnode = new ModelNode
                     {
-                        ["hull"] = true
-                    }
-                };
-                sm.Children.Add(surnode);
+                        Geometry = GeometryFromSur(node.Name + "." + i + "$hull", hulls[i], res, dest.Materials,
+                            allGeos),
+                        Name = node.Name + "." + i + "$hull",
+                        Properties =
+                        {
+                            ["hull"] = true
+                        }
+                    };
+                    sm.Children.Add(surnode);
+                }
+            }
+
+            if (node.Model.VMeshWire != null && settings.IncludeWireframes)
+            {
+                var geo = GeometryFromVMeshWire(node.Name, node.Model.VMeshWire, res, dest.Materials, allGeos);
+                if (geo != null)
+                {
+                    var meshNode = new ModelNode
+                    {
+                        Geometry = GeometryFromVMeshWire(node.Name, node.Model.VMeshWire, res, dest.Materials, allGeos),
+                        Name = node.Name + ".vmeshwire"
+                    };
+                    sm.Children.Add(meshNode);
+                }
             }
         }
 
-        if (node.Model.VMeshWire != null && settings.IncludeWireframes)
-        {
-            var geo = GeometryFromVMeshWire(node.Name, node.Model.VMeshWire, res, dest.Materials, allGeos);
-            if (geo != null)
-            {
-                var meshNode = new ModelNode
-                {
-                    Geometry = GeometryFromVMeshWire(node.Name, node.Model.VMeshWire, res, dest.Materials, allGeos),
-                    Name = node.Name + ".vmeshwire"
-                };
-                sm.Children.Add(meshNode);
-            }
-        }
+
         foreach (var n in node.Children)
         {
             var child = ProcessNode(n, dest, settings, res, sur, allGeos, is3db);
@@ -260,18 +294,23 @@ public static class ModelExporter
                 return child;
             sm.Children.Add(child.Data);
         }
+
         return sm.AsResult();
     }
 
 
-    static Geometry GeometryFromSur(string name, ConvexMesh ms, ResourceManager resources, Dictionary<string, Material> materials, List<Geometry> geometries)
+    static Geometry GeometryFromSur(string name, ConvexMesh ms, ResourceManager resources,
+        Dictionary<string, Material> materials, List<Geometry> geometries)
     {
         var va = new VertexArray(VertexAttributes.None, ms.Vertices.Length);
         for (int i = 0; i < ms.Vertices.Length; i++)
             va.Position[i] = ms.Vertices[i];
         var geo = new Geometry(va, Indices.FromBuffer(ms.Indices.Select(x => (uint)x).ToArray()));
         geo.Name = name;
-        geo.Groups = [new TriangleGroup(MaterialExporter.GetMaterial(0, resources, materials)) { IndexCount = ms.Indices.Length }];
+        geo.Groups =
+        [
+            new TriangleGroup(MaterialExporter.GetMaterial(0, resources, materials)) { IndexCount = ms.Indices.Length }
+        ];
         return geo;
     }
 
@@ -286,12 +325,14 @@ public static class ModelExporter
             FLLog.Error("Exporter", $"Could not find VMeshData for VMeshWire {name}");
             return null;
         }
+
         for (int i = 0; i < wire.NumIndices; i++)
         {
             var idx = wire.VertexOffset + wire.Indices[i];
-            var vert = new Vertex() {Position = mesh.GetPosition(idx)};
+            var vert = new Vertex() { Position = mesh.GetPosition(idx) };
             gb.Add(ref vert);
         }
+
         gb.AddGroup(MaterialExporter.GetMaterial(0, resources, materials));
         var geo = gb.Finish();
         geo.Name = $"{name}.wire.mesh";
@@ -301,7 +342,8 @@ public static class ModelExporter
     }
 
     // Get just the referenced geometry from the VMeshData
-    static EditResult<Geometry?> GeometryFromRef(string name, int level, VMeshRef vms, Dictionary<string,Material> materials, List<Geometry> geometries, ResourceManager resources)
+    static EditResult<Geometry?> GeometryFromRef(string name, int level, VMeshRef vms,
+        Dictionary<string, Material> materials, List<Geometry> geometries, ResourceManager resources)
     {
         var mesh = resources.FindMeshData(vms.MeshCrc);
         if (vms.MeshCrc == 0)
@@ -342,10 +384,13 @@ public static class ModelExporter
                 {
                     vert.Texture1 = mesh.GetTexCoord(idx, 0);
                 }
+
                 gb.Add(ref vert);
             }
+
             gb.AddGroup(MaterialExporter.GetMaterial(m.MaterialCrc, resources, materials));
         }
+
         var geo = gb.Finish();
         geo.Name = $"{name}.{(int)mesh.VertexFormat.FVF}.level{level}";
         geometries.Add(geo);
@@ -357,6 +402,7 @@ public static class ModelExporter
         public string Name = name;
         public List<ExportModelNode> Children = new();
         public ModelFile? Model;
+        public CmpCameraInfo? Camera;
         public AbstractConstruct? Construct;
     }
 }

@@ -6,6 +6,7 @@ using System;
 using LibreLancer.Client.Components;
 using LibreLancer.Render;
 using LibreLancer.Thorn;
+using LibreLancer.World.Equipments;
 
 namespace LibreLancer.Thn.Events
 {
@@ -34,7 +35,7 @@ namespace LibreLancer.Thn.Events
                 FLLog.Error("Thn", "Entity " + Targets[0] + " null renderer");
                 return;
             }
-            
+
             var r = (ParticleEffectRenderer)obj.Object.RenderComponent!;
             // START_PSYS starts the effect from its beginning. s069x fires one muzzle-flare effect again for each shot.
             // A start at or after the end of the earlier start also restarts an effect that is still active.
@@ -56,9 +57,9 @@ namespace LibreLancer.Thn.Events
         {
             private double time;
             public double Duration;
-            public CEngineComponent Fx;
+            public Engine Fx;
 
-            public StopEngine(CEngineComponent fx, double duration)
+            public StopEngine(Engine fx, double duration)
             {
                 Fx = fx;
                 Duration = duration;

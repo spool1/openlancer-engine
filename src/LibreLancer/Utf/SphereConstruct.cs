@@ -12,18 +12,10 @@ namespace LibreLancer.Utf
 {
     public class SphereConstruct : AbstractConstruct
     {
-        public Vector3 Offset { get; set; }
-        public float Min1 { get; set; }
-        public float Max1 { get; set; }
-        public float Min2 { get; set; }
-        public float Max2 { get; set; }
-        public float Min3 { get; set; }
-        public float Max3 { get; set; }
+        public Vector3 Offset;
+        public Vector3 Min;
+        public Vector3 Max;
 
-        /*public override Transform3D LocalTransform
-        {
-            get { return internalGetTransform( new Transform3D(Origin + Offset, Quaternion.Concatenate(quatRot, Rotation))); }
-        }*/
 
         public override Transform3D LocalTransform => internalGetTransform(
             new Transform3D(-Offset, Quaternion.Identity) * new Transform3D(Origin,  quatRot * Rotation));
@@ -40,12 +32,15 @@ namespace LibreLancer.Utf
             Offset = ConvertData.ToVector3(reader);
             Rotation = ConvertData.ToMatrix3x3(reader).ExtractRotation();
 
-            Min1 = reader.ReadSingle();
-            Max1 = reader.ReadSingle();
-            Min2 = reader.ReadSingle();
-            Max2 = reader.ReadSingle();
-            Min3 = reader.ReadSingle();
-            Max3 = reader.ReadSingle();
+            var min1 = reader.ReadSingle();
+            var max1 = reader.ReadSingle();
+            var min2 = reader.ReadSingle();
+            var max2 = reader.ReadSingle();
+            var min3 = reader.ReadSingle();
+            var max3 = reader.ReadSingle();
+
+            Min = new(min1, min2, min3);
+            Max = new(max1, max2, max3);
         }
 		protected SphereConstruct(SphereConstruct cf) : base(cf) { }
 		public override AbstractConstruct Clone()
@@ -53,12 +48,8 @@ namespace LibreLancer.Utf
 			var newc = new SphereConstruct(this)
             {
                 Offset = Offset,
-                Min1 = Min1,
-                Min2 = Min2,
-                Min3 = Min3,
-                Max1 = Max1,
-                Max2 = Max2,
-                Max3 = Max3
+                Min = Min,
+                Max = Max
             };
             return newc;
 		}

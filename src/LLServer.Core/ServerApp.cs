@@ -46,9 +46,11 @@ public class ServerApp(ServerConfig config)
             ServerDescription = Config.ServerDescription,
             ScriptsFolder = Path.Combine(GetBasePath(), "scripts"),
             LoginUrl = Config.LoginUrl,
+            MaxAccountCharacters = Config.MaxAccountCharacters > 0 ? Config.MaxAccountCharacters : 1,
+            EnableRateLimiting = Config.EnableRateLimiting,
             Listener =
             {
-                Port = Config.Port > 0 ? Config.Port : LNetConst.DEFAULT_PORT
+                Port = Config.Port > 0 ? Config.Port : LNetConst.DefaultPort
             }
         };
         if(Config.ThreadCount > 0)

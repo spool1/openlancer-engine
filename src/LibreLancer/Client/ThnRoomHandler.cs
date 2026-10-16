@@ -175,7 +175,7 @@ public static class ThnRoomHandler
         var animation = new AnimationComponent(obj, charAnimations);
         obj.AnimationComponent = animation;
         obj.AddComponent(animation);
-        obj.SetLocalTransform(start);
+        obj.SetTransform(start);
         return new ThnSceneObject
         {
             Name = name,

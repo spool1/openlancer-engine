@@ -82,6 +82,7 @@ public class TestCharacterList : ITableData
     public string ServerName = "Server";
     public string ServerDescription = "DESCRIPTION";
     public string ServerNews = "Placeholder News";
+    public int CharacterLimit = 10;
 
     public bool ValidSelection()
     {
@@ -756,12 +757,14 @@ public class TestingApi
     {
     }
 
-    public void DeleteCharacter()
+    public void DeleteCharacter(Closure onResult)
     {
+        onResult.Call(true);
     }
 
-    public void NewCharacter(string name, int index)
+    public void NewCharacter(string name, int index, Closure onResult)
     {
+        onResult.Call(true);
     }
 
     public KnownNavmapBaseList GetKnownNavmapBases() =>

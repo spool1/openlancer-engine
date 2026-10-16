@@ -115,6 +115,25 @@ namespace LibreLancer.Server
             actionQueueTask = Task.Run(ProcessTaskQueue);
 		}
 
+        public async Task<Guid> GetDbIdentifier()
+        {
+            return await Run(async () =>
+            {
+                await using var ctx = CreateDbContext();
+
+                var guid = Guid.NewGuid();
+
+                await ctx.Database.ExecuteSqlInterpolatedAsync(
+                    $"""
+                     INSERT INTO DatabaseInfo (Id, DatabaseGuid)
+                     VALUES (1, {guid})
+                     ON CONFLICT(Id) DO NOTHING;
+                     """);
+
+                return (await ctx.DatabaseInfo.SingleAsync()).DatabaseGuid;
+            });
+        }
+
         // RunContinuationsAsynchronously seems to avoid deadlocks
         internal Task<T> Run<T>(Func<Task<T>> func)
         {
@@ -275,6 +294,27 @@ namespace LibreLancer.Server
                 var c = ctx.Characters.Include(x => x.Account).FirstOrDefault(x => x.Name == character);
                 c ??= ctx.Characters.Include(x => x.Account).FirstOrDefault(x => x.Name.Contains(character));
                 return c?.Account?.AccountIdentifier;
+            });
+        }
+
+        public async Task<int> GetCharacterCount(Guid playerGuid)
+        {
+            return await Run(async () =>
+            {
+                await using var ctx = CreateDbContext();
+                var acc = ctx.Accounts.Where(x => x.AccountIdentifier == playerGuid)
+                    .Include(x => x.Characters)
+                    .FirstOrDefault();
+                return acc?.Characters.Count ?? 0;
+            });
+        }
+
+        public async Task<bool> AccountExists(Guid playerGuid)
+        {
+            return await Run(async () =>
+            {
+                await using var ctx = CreateDbContext();
+                return await ctx.Accounts.Where(x => x.AccountIdentifier == playerGuid).AnyAsync();
             });
         }
 

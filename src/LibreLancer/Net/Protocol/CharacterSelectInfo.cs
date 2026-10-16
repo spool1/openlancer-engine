@@ -15,6 +15,7 @@ namespace LibreLancer.Net.Protocol
         public string ServerName = "";
         public string ServerDescription = "";
 		public string ServerNews = "";
+        public int CharacterLimit;
 
         public List<SelectableCharacter> Characters = [];
         public int Count => Characters.Count;

@@ -10,6 +10,7 @@ using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using LancerEdit.Audio;
+using LancerEdit.ModelEditor;
 using LancerEdit.Utf.Popups;
 using LibreLancer;
 using LibreLancer.ContentEdit;
@@ -40,7 +41,6 @@ namespace LancerEdit
         private HashSet<string> textures = new(StringComparer.OrdinalIgnoreCase);
 
         public GameResourceManager DetachedResources;
-        public int DetachedResourceCount;
 
         // Track ImGui expanded/collapsed state
         Dictionary<LUtfNode, bool> nodeOpenState = new();
@@ -100,19 +100,6 @@ namespace LancerEdit
         public bool HasMaterial(uint matCrc) => materials.Contains(matCrc);
         public bool HasTexture(string textureName) => textures.Contains(textureName);
 
-
-
-        public void ReferenceDetached()
-        {
-            DetachedResourceCount++;
-        }
-
-        public void DereferenceDetached()
-        {
-            DetachedResourceCount--;
-            if (DetachedResourceCount == 0)
-                DetachedResources?.Dispose();
-        }
         //generated parameter is used for utf generated internally, like from the collada exporter
         //saves a bunch of copies when opening a large UTF from disk
         public UtfTab(MainWindow main, EditableUtf utf, string title, bool generated = false)
@@ -128,7 +115,6 @@ namespace LancerEdit
                 utf.Source = null;
             }
             SaveStrategy = new UtfSaveStrategy(main, this);
-            ReferenceDetached();
             BuildResourceLookupCache();
         }
         public void UpdateTitle()
@@ -138,10 +124,15 @@ namespace LancerEdit
 
         ImGuiTreeNodeFlags tflags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.OpenOnDoubleClick;
 
+        private bool ownsResources = true;
+
         public override void Dispose()
         {
-            DereferenceDetached();
-            main.Resources.RemoveResourcesForId(Unique.ToString());
+            if (ownsResources)
+            {
+                main.Resources.RemoveResourcesForId(Unique.ToString());
+                DetachedResources?.Dispose();
+            }
         }
 
         public string GetUtfPath()
@@ -179,9 +170,14 @@ namespace LancerEdit
 
         public void ReloadResources()
         {
-            var res = DetachedResources ?? main.Resources;
-            res.RemoveResourcesForId(Unique.ToString());
-            res.AddResources(Utf.Export(), Unique.ToString());
+            if (DetachedResources != null)
+            {
+                DetachedResources?.Dispose();
+                DetachedResources = new(main.Resources);
+                DetachedResources.AddResources(Utf.Export(), Unique.ToString());
+            }
+            main.Resources.RemoveResourcesForId(Unique.ToString());
+            main.Resources.AddResources(Utf.Export(), Unique.ToString());
         }
 
         public override void OnHotkey(Hotkeys hk, bool shiftPressed)
@@ -268,7 +264,7 @@ namespace LancerEdit
                 {
                     CollapseRecursive(Utf.Root);
                 }
-                if (tb.ButtonItem("View Model"))
+                if (tb.ButtonItem("Edit Model"))
                 {
                     IDrawable drawable = null;
                     ModelNodes hpn = new ModelNodes();
@@ -299,8 +295,9 @@ namespace LancerEdit
                     catch (Exception ex) { ErrorPopup("Could not open as model\n" + ex.Message + "\n" + ex.StackTrace); drawable = null; }
                     if (drawable != null)
                     {
-                        ReferenceDetached();
-                        main.AddTab(new ModelViewer(DocumentName, drawable, main, this, hpn));
+                        ownsResources = false;
+                        main.AddTab(new ModelEditorTab(drawable, main, this, hpn));
+                        main.TabControl.CloseTab(this);
                     }
                 }
 
@@ -343,7 +340,7 @@ namespace LancerEdit
 
                 const string TooltipDetached = "Resources already detached";
                 const string TooltipToDetach =
-                    "Detaches tab from shared resources\nViewers opened will have textures+materials unique to this file.";
+                    "Detaches tab from shared resources\nEditors opened will have textures+materials unique to this file.";
                 string tooltip = DetachedResources == null ? TooltipToDetach : TooltipDetached;
                 if (tb.ButtonItem("Detach Resources", DetachedResources == null, tooltip))
                 {

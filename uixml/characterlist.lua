@@ -8,8 +8,11 @@ class characterlist : characterlist_Designer
         e.listtable.OnDoubleClick(() => Game.LoadCharacter());
         e.newchar.OnClick(() => Game.RequestNewCharacter());
         e.loadchar.OnClick(() => Game.LoadCharacter());
-        e.deletechar.OnClick(() => Game.DeleteCharacter());
-		this.Widget.OnEscape(() => this.GoBack());
+        e.deletechar.OnClick(() => {
+            this.OnAsync();
+            Game.DeleteCharacter(result => this.CloseAsync());
+        });
+        this.Widget.OnEscape(() => this.GoBack());
         e.serverlist.OnClick(() => this.ExitAnimation(() => {
             Game.StopNetworking();
             OpenScene("serverlist");
@@ -20,23 +23,40 @@ class characterlist : characterlist_Designer
         }));
     }
     
+    OnAsync()
+    {
+       this.connecting = new connecting();
+       OpenModal(this.connecting);
+    }
+    
+    CloseAsync()
+    {
+        if(this.connecting)
+        {
+            this.connecting.Close();
+            this.connecting = nil;
+        }
+    }
+   
+    
     //TODO: Animate out
     ExitAnimation(f) => f();
 
-	GoBack()
-	{
-		this.ExitAnimation(() => {
+    GoBack()
+    {
+        this.ExitAnimation(() => {
             Game.StopNetworking();
             OpenScene("serverlist");
         });
-	}
+    }
     
     Update()
     {
         var scn = this.Elements;
         var cl = Game.CharacterList();
         scn.loadchar.Enabled = cl.ValidSelection();
-	    scn.deletechar.Enabled = cl.ValidSelection();
+        scn.deletechar.Enabled = cl.ValidSelection();
+        scn.newchar.Enabled = cl.Count < cl.CharacterLimit;
     }
     
     OpenNewCharacter()
@@ -46,15 +66,22 @@ class characterlist : characterlist_Designer
     
     CreateCharacter(result, name, index)
     {
-        if(result == 'ok') Game.NewCharacter(name, index, () => {
-			OpenModal(new popup(0, STRID_NAME_TAKEN, "ok"));
-		});
+        if(result == 'ok') 
+        {
+            this.OnAsync();   
+            Game.NewCharacter(name, index, result => 
+            {
+                this.CloseAsync();   
+                if(!result)   
+                    OpenModal(new popup(0, STRID_NAME_TAKEN, "ok"));
+            });
+        }
     }
 
-	SelectCharFailure()
-	{
-		OpenModal(new popup(0, STRID_ALREADY_LOGGED_IN, "ok"));
-	}
+    SelectCharFailure()
+    {
+        OpenModal(new popup(0, STRID_ALREADY_LOGGED_IN, "ok"));
+    }
     
     Disconnect()
     {

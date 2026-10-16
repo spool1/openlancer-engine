@@ -39,45 +39,54 @@ namespace LibreLancer.Utf.Mat
             return null;
         }
 
-		public void Initialize (RenderContext context)
-		{
-			if (data != null && data.Value.Count > 0 && Texture == null)
+        public void Initialize(RenderContext context)
+        {
+            try
             {
-				using (Stream stream = data.Value.GetReadStream()) {
-					if (type.Equals ("mips", StringComparison.OrdinalIgnoreCase))
+                if (data != null && data.Value.Count > 0 && Texture == null)
+                {
+                    using Stream stream = data.Value.GetReadStream();
+                    if (type.Equals ("mips", StringComparison.OrdinalIgnoreCase))
                     {
                         Texture = ImageLib.DDS.FromStream(context, stream);
-					}
+                    }
                     else if (type.StartsWith ("mip", StringComparison.OrdinalIgnoreCase))
                     {
-						var tga = ImageLib.TGA.TextureFromStream(context, stream, levels != null);
+                        var tga = ImageLib.TGA.TextureFromStream(context, stream, levels != null);
                         if(tga == null) {
                             FLLog.Error("Mat","Texture " + texname + "\\MIP0" + " is bad");
                             Texture = null;
                             return;
                         }
-						if (levels != null)
-						{
-							foreach (var lv in levels)
+                        if (levels != null)
+                        {
+                            foreach (var lv in levels)
                             {
                                 using var s2 = new MemoryStream(lv.Value);
                                 ImageLib.TGA.TextureFromStream(context, s2, true, tga, lv.Key);
-
                             }
-						}
-						Texture = tga;
-						levels = null;
-					}
+                        }
+                        Texture = tga;
+                        levels = null;
+                    }
                     else if (type.Equals ("cube", StringComparison.OrdinalIgnoreCase))
                     {
-						Texture = ImageLib.DDS.FromStream (context, stream);
-					}
-				}
-			} else
-				FLLog.Error ("Texture " + texname, "data == null");
-		}
+                        Texture = ImageLib.DDS.FromStream (context, stream);
+                    }
+                }
+                else
+                {
+                    FLLog.Error ("Texture " + texname, "data == null");
+                }
+            }
+            catch (Exception e)
+            {
+                FLLog.Error("Texture", $"Error loading {texname}");
+                FLLog.Error("Texture", e.ToString());
+            }
+        }
 
-		public void SetLevel(Node node)
+        public void SetLevel(Node node)
 		{
             if (node is not LeafNode n)
             {

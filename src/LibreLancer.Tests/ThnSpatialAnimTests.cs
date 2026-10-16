@@ -382,7 +382,7 @@ public class ThnSpatialAnimTests
         var instance = Scene([marker, trent], ev);
         Frames(instance, 40, 1.0 / 60);
 
-        var head = (skeleton.Hardpoints["hp_head"].Transform * trent.Object!.WorldTransform).Position;
+        var head = (skeleton.Hardpoints["hp_head"].Transform * trent.Object!.Transform).Position;
         AssertNear(head, marker.Translate);
         Assert.InRange(marker.Translate.Y, 1.6f, 1.85f);
         Assert.InRange(trent.Translate.Y, 0.85f, 1.1f);

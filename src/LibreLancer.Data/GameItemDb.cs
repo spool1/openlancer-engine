@@ -556,27 +556,24 @@ public class GameItemDb
                 continue;
             }
 
-            var @base = b!;
-
             foreach (var gd in m.MarketGoods)
             {
                 if (shipPackages.TryGetValue(gd.Good!, out var sp))
                 {
                     if (gd.Min != 0 || gd.Max != 0) //Vanilla adds disabled ships ??? (why)
                     {
-                        @base.SoldShips.Add(new SoldShip() { Package = sp, Rank = gd.Rank });
+                        b.SoldShips.Add(new SoldShip() { Package = sp, Rank = gd.Rank });
                     }
                 }
                 else if (Goods.TryGetValue(gd.Good, out var good))
                 {
-                    @base.SoldGoods.Add(new BaseSoldGood()
-                    {
-                        Rep = gd.Rep,
-                        Rank = gd.Rank,
-                        Good = good!,
-                        Price = (ulong)((double)good!.Ini.Price * gd.Multiplier),
-                        ForSale = gd.Max > 0
-                    });
+                    b.SoldGoods.Add(new BaseSoldGood(
+                        gd.Rank,
+                        good!,
+                        gd.Rep,
+                        (ulong)((double)good!.Ini.Price * gd.Multiplier),
+                        gd.Max > 0,
+                        m.SourceFile));
                 }
             }
         }
@@ -1071,11 +1068,12 @@ public class GameItemDb
             {
                 lights.Add(val.Nickname, new LightInheritHelper(l));
             }
-            else if (val is InternalFx)
+            else if (val is InternalFx ifx)
             {
-                var eq = new AnimationEquipment
+                var eq = new InternalFxEquipment
                 {
-                    Animation = ((InternalFx)val).UseAnimation
+                    Animation = ifx.UseAnimation,
+                    Sound = ifx.UseSound
                 };
                 equip = eq;
             }
@@ -1261,7 +1259,13 @@ public class GameItemDb
 
             if (val is Engine deng)
             {
-                var engequip = new EngineEquipment() { Def = deng };
+                var engequip = new EngineEquipment()
+                {
+                    Def = deng,
+                    TrailEffect = Effects.Get(deng.TrailEffect),
+                    TrailEffectPlayer = Effects.Get(deng.TrailEffectPlayer),
+                    FlameEffect = Effects.Get(deng.FlameEffect)
+                };
 
                 if (deng.CruiseSpeed > 0)
                 {
@@ -2705,7 +2709,7 @@ public class GameItemDb
     {
         var equip = new EffectEquipment()
         {
-            Particles = Effects.Get(fx.Particles),
+            Effect = Effects.Get(fx.Particles),
         };
         return equip;
     }

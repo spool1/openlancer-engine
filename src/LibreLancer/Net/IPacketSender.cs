@@ -11,5 +11,7 @@ namespace LibreLancer.Net
     {
         int MaxSequencedSize { get; }
         void SendPacket(IPacket packet, PacketDeliveryMethod method);
+
+        bool Connected { get; }
     }
 }

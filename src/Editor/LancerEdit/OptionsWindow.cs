@@ -8,6 +8,7 @@ using System.Numerics;
 using LibreLancer;
 using LibreLancer.ImUI;
 using ImGuiNET;
+using LancerEdit.ModelEditor;
 using LibreLancer.ContentEdit;
 using LibreLancer.Dialogs;
 using LibreLancer.Graphics;
@@ -133,7 +134,7 @@ namespace LancerEdit
             ImGui.SameLine();
             ImGui.AlignTextToFramePadding();
             ImGui.Text("Default Camera");
-            ImGuiExt.DropdownButton("Default View", ref config.DefaultRenderMode, ModelViewer.ViewModes);
+            ImGuiExt.DropdownButton("Default View", ref config.DefaultRenderMode, ModelEditorTab.ViewModes);
             ImGui.SameLine();
             ImGui.AlignTextToFramePadding();
             ImGui.Text("Default View");

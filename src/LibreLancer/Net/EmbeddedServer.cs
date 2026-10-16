@@ -29,9 +29,10 @@ namespace LibreLancer.Net
             Server = new GameServer(gameData, resources.ConvexCollection)
             {
                 ScriptsFolder = Path.Combine(saveFolder, "scripts"),
-                ThreadCount = 1
+                ThreadCount = 1,
+                UseDatabase = false
             };
-            Server.LocalPlayer = new Player(Client, Server, Guid.Empty);
+            Server.LocalPlayer = new Player(Client, Server, Guid.Empty, default);
             Server.ConnectedPlayers.Add(Server.LocalPlayer);
             Server.LocalPlayer.SaveFolder = saveFolder;
         }

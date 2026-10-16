@@ -388,6 +388,33 @@ public static class Controls
         return retval;
     }
 
+    public static void InputAngleUndo(
+        string label,
+        EditorUndoBuffer buffer,
+        FieldAccessor<float> value,
+        Action hook = null,
+        string format = "%.3f",
+        float nonTableWidth = 0
+    )
+    {
+        ImGui.PushID(label);
+        EditControlSetup(label, nonTableWidth);
+        ref float vrad = ref value();
+        float oldCopy = vrad;
+        float vdeg = MathHelper.RadiansToDegrees(vrad);
+        ImGui.InputFloat("##input", ref vdeg, 0, 0, format);
+        vrad = MathHelper.DegreesToRadians(vdeg);
+        if (ImGui.IsItemActivated())
+        {
+            oldFloat = oldCopy;
+        }
+        if (ImGui.IsItemDeactivatedAfterEdit())
+        {
+            buffer.Set(label, value, oldFloat, vrad, hook);
+        }
+        ImGui.PopID();
+    }
+
 
     public static void InputFloatUndo(
         string label,
@@ -458,6 +485,114 @@ public static class Controls
         if (ImGui.IsItemDeactivatedAfterEdit())
         {
             buffer.Set(label, value, oldVector, v);
+        }
+        ImGui.PopID();
+    }
+
+    public static void AxisSelectionUndo(
+        string id,
+        EditorUndoBuffer buffer,
+        FieldAccessor<Vector3> value)
+    {
+        if (InEditorTable)
+        {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            ImGui.TableNextColumn();
+        }
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(ImGuiHelper.Scale,0));
+        var w = ImGui.CalcTextSize("+X+").X;
+        var sz = new Vector2(w, 0);
+        ImGui.PushID(id);
+        if (ImGui.Button("+X", sz))
+            buffer.Set(id, value, Vector3.UnitX);
+        ImGui.SameLine();
+        if (ImGui.Button("-X", sz))
+            buffer.Set(id, value, new(-1,0,0));
+        ImGui.SameLine();
+        if (ImGui.Button("+Y", sz))
+            buffer.Set(id, value, Vector3.UnitY);
+        ImGui.SameLine();
+        if (ImGui.Button("-Y", sz))
+            buffer.Set(id, value, new(0,-1,0));
+        ImGui.SameLine();
+        if (ImGui.Button("+Z", sz))
+            buffer.Set(id, value, Vector3.UnitZ);
+        ImGui.SameLine();
+        if (ImGui.Button("-Z", sz))
+            buffer.Set(id, value, new(0,0,-1));
+        ImGui.PopID();
+        ImGui.PopStyleVar();
+    }
+
+    private static Matrix4x4 oldRotation;
+    private static Vector3 editingRotation;
+    private static uint rotEditId = 0;
+    public static void InputEulerRotationMatrixUndo(
+        string label,
+        EditorUndoBuffer buffer,
+        FieldAccessor<Matrix4x4> value,
+        string format = "%.5f")
+    {
+        ImGui.PushID(label);
+        var currId = ImGui.GetID(0x1234);
+        EditControlSetup(label, 0);
+        ref Matrix4x4 vMat = ref value();
+        Vector3 v = rotEditId == currId ? editingRotation : vMat.GetEulerDegrees();
+        ImGui.InputFloat3("##input", ref v, format);
+        if (ImGui.IsItemActivated())
+        {
+            oldRotation = vMat;
+            rotEditId = currId;
+        }
+        if (currId == rotEditId)
+        {
+            vMat = MathHelper.MatrixFromEulerDegrees(v);
+            editingRotation = v;
+        }
+        if (ImGui.IsItemDeactivatedAfterEdit())
+        {
+            buffer.Set(label, value, oldRotation, vMat);
+            rotEditId = 0;
+        }
+        else if (ImGui.IsItemDeactivated())
+        {
+            vMat = oldRotation;
+            rotEditId = 0;
+        }
+        ImGui.PopID();
+    }
+
+    public static void InputEulerQuaternionUndo(string label,
+        EditorUndoBuffer buffer,
+        FieldAccessor<Quaternion> value,
+        string format = "%.5f")
+    {
+        ImGui.PushID(label);
+        var currId = ImGui.GetID(0x1234);
+        EditControlSetup(label, 0);
+        ref Quaternion vQuat = ref value();
+        Vector3 v = rotEditId == currId ? editingRotation : vQuat.GetEulerDegrees();
+        ImGui.InputFloat3("##input", ref v, format);
+        if (ImGui.IsItemActivated())
+        {
+            oldQuaternion = vQuat;
+            rotEditId = currId;
+        }
+        if (currId == rotEditId)
+        {
+            vQuat = MathHelper.QuatFromEulerDegrees(v);
+            editingRotation = v;
+        }
+        if (ImGui.IsItemDeactivatedAfterEdit())
+        {
+            buffer.Set(label, value, oldQuaternion, vQuat);
+            rotEditId = 0;
+        }
+        else if (ImGui.IsItemDeactivated())
+        {
+            vQuat = oldQuaternion;
+            rotEditId = 0;
         }
         ImGui.PopID();
     }

@@ -90,7 +90,9 @@ namespace LibreLancer.Server
 
         public RemoteClientPlayer RpcClient => rpcClient;
 
-        public Player(IPacketClient client, GameServer game, Guid playerGuid)
+        public IPKey Key { get; private set; }
+
+        public Player(IPacketClient client, GameServer game, Guid playerGuid, IPKey key)
         {
             this.Client = client;
             this.Game = game;
@@ -98,6 +100,7 @@ namespace LibreLancer.Server
             ID = Interlocked.Increment(ref _gid);
             ResponseHandler = new NetResponseHandler();
             rpcClient = new RemoteClientPlayer(client, ResponseHandler);
+            Key = key;
         }
 
         public void SetObjective(NetObjective objective, bool history)
@@ -1067,6 +1070,25 @@ namespace LibreLancer.Server
             try
             {
                 FLLog.Info("Server", "Account logged in");
+                var d = Game.Limits.GetRateLimitDelay(this);
+                if (d > 0)
+                {
+                    FLLog.Debug("Server", $"Waiting {d}ms, rate limited.");
+                    await Task.Delay(d);
+                }
+                if (!Client.Connected)
+                {
+                    return;
+                }
+
+                if (!await Game.Database.AccountExists(playerGuid) &&
+                    !Game.Limits.TryCreate(this))
+                {
+                    FLLog.Debug("Server", "Kicked for rate limit");
+                    Client.Disconnect(DisconnectReason.Kicked);
+                    return;
+                }
+
                 CharacterList = (await Game.Database.PlayerLogin(playerGuid))!;
 
                 if (CharacterList == null)
@@ -1084,7 +1106,6 @@ namespace LibreLancer.Server
                     return;
                 }
 
-                Client.SendPacket(new LoginSuccessPacket(), PacketDeliveryMethod.ReliableOrdered);
                 Client.SendPacket(new OpenCharacterListPacket()
                 {
                     Info = new CharacterSelectInfo()
@@ -1138,6 +1159,14 @@ namespace LibreLancer.Server
 
         public void EnqueuePacket(IPacket packet)
         {
+            if (inputPackets.Count > 2000)
+            {
+                FLLog.Error("Net",
+                    $"Packet processing stalled or too many packets sent (queue >2000). Force disconnect {Character?.Name ?? "null"}");
+                Client.Disconnect(DisconnectReason.ConnectionError);
+                Disconnected();
+                return;
+            }
             inputPackets.Post(packet);
         }
 
@@ -1168,6 +1197,16 @@ namespace LibreLancer.Server
 
         public async Task ProcessPacketDirect(IPacket packet)
         {
+            if (packet is IServerPlayer_CreateNewCharacterPacket ||
+                packet is IServerPlayer_DeleteCharacterPacket)
+            {
+                var d = Game.Limits.GetRateLimitDelay(this);
+                if (d > 0)
+                {
+                    FLLog.Debug("Player", "Rate limiting character create/delete");
+                    await Task.Delay(d);
+                }
+            }
             if (ResponseHandler.HandlePacket(packet))
                 return;
             if (await GeneratedProtocol.HandleIServerPlayer(packet, this, Client))
@@ -1278,6 +1317,17 @@ namespace LibreLancer.Server
         {
             if (!Game.Database.NameInUse(name))
             {
+                var count = await Game.Database.GetCharacterCount(playerGuid);
+                if (count >= Game.MaxAccountCharacters)
+                {
+                    FLLog.Error("Player", $"Account {playerGuid} has too many characters. Reject new character");
+                    return false;
+                }
+                if (!Game.Limits.TryCreate(this))
+                {
+                    FLLog.Error("Player", $"Disallowing for creation rate limit");
+                    return false;
+                }
                 FLLog.Info("Player", $"New char: {name}");
                 SelectableCharacter? sel = null;
                 long id = await Game.Database.AddCharacter(playerGuid,
@@ -1764,8 +1814,8 @@ namespace LibreLancer.Server
                         undockFrom = MissionRuntime?.SpawnMissionSolarForBase(launchBase, world);
                         if (undockFrom != null)
                         {
-                            Position = undockFrom.WorldTransform.Position;
-                            Orientation = undockFrom.LocalTransform.Orientation;
+                            Position = undockFrom.Transform.Position;
+                            Orientation = undockFrom.Transform.Orientation;
                         }
                     }
 

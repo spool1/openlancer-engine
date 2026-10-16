@@ -50,7 +50,7 @@ public class PacketWriter
 
     public void Put(DisconnectReason reason)
     {
-        writer.Put(LNetConst.DISCONNECT_MAGIC);
+        writer.Put(LNetConst.DisconnectMagic);
         writer.Put((byte)reason);
     }
 
@@ -253,6 +253,8 @@ public class PacketWriter
     public void Put(ushort u) => writer.Put(u);
 
     public void Put(byte[] data, int offset, int length) => writer.Put(data, offset, length);
+
+    public void Put(ReadOnlySpan<byte> bytes) => writer.Put(bytes);
 
     public byte[] GetCopy() => writer.CopyData();
 }

@@ -11,6 +11,7 @@ using System.Linq;
 using System.Numerics;
 using ImGuiNET;
 using LibreLancer;
+using LibreLancer.ContentEdit;
 using LibreLancer.Dialogs;
 using LibreLancer.ImUI;
 
@@ -263,14 +264,21 @@ namespace LancerEdit
             var proc = Process.Start(pi);
             proc.EnableRaisingEvents = true;
             doUpdate = true;
-            static string S(string s) => s?.Replace("%", "%%") ?? "";
             proc.OutputDataReceived += (sender, eventArgs) =>
             {
-                main.QueueUIThread(() => lines.Add(S(eventArgs.Data)));
+                main.QueueUIThread(() =>
+                {
+                    if (eventArgs.Data != null)
+                        lines.Add(eventArgs.Data);
+                });
             };
             proc.ErrorDataReceived += (sender, eventArgs) =>
             {
-                main.QueueUIThread(() => lines.Add(S(eventArgs.Data)));
+                main.QueueUIThread(() =>
+                {
+                    if (eventArgs.Data != null)
+                        lines.Add(eventArgs.Data);
+                });
             };
             proc.Exited += (sender, eventArgs) =>
             {
@@ -326,6 +334,16 @@ namespace LancerEdit
                     else
                     {
                         ImGui.Text("Finished");
+                        if (ImGui.Button("Save Log"))
+                        {
+                            FileDialog.Save(file =>
+                            {
+                                if (file != null)
+                                {
+                                    File.WriteAllLines(file, lines);
+                                }
+                            }, AppFilters.TxtFilter);
+                        }
                     }
                     ImGui.BeginChild($"##SCRIPTlog{unique}");
                     ImGui.PushFont(ImGuiHelper.SystemMonospace, 0);

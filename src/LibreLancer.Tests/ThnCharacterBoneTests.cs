@@ -127,7 +127,7 @@ public class ThnCharacterBoneTests
         character.Update();
 
         var local = type == TargetTypes.Part ? skeleton.GetBone(part)! : skeleton.Hardpoints[part];
-        AssertNear(local.Transform * character.Object!.WorldTransform, TransformOf(marker));
+        AssertNear(local.Transform * character.Object!.Transform, TransformOf(marker));
         // The head of a standing man is about 1.7 m above the floor.
         Assert.InRange(marker.Translate.Y - skeleton.FloorHeight, 1.5f, 1.9f);
     }
@@ -151,7 +151,7 @@ public class ThnCharacterBoneTests
             character.Update();
             marker.Update();
             var pose = skeleton.GetBone(bone)!.Transform;
-            AssertNear(pose * character.Object!.WorldTransform, TransformOf(marker));
+            AssertNear(pose * character.Object!.Transform, TransformOf(marker));
             moved = MathF.Max(moved, Vector3.Distance(start, pose.Position));
             skeleton.UpdateScripts(0.1);
         }
@@ -201,6 +201,6 @@ public class ThnCharacterBoneTests
         var local = type == TargetTypes.Part
             ? ship.Model!.RigidModel.Parts[part].LocalTransform
             : ship.GetHardpoint(part)!.Transform;
-        AssertNear(local * ship.WorldTransform, TransformOf(marker));
+        AssertNear(local * ship.Transform, TransformOf(marker));
     }
 }

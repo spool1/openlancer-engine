@@ -11,6 +11,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using LibreLancer.Net.Protocol;
@@ -26,7 +27,7 @@ namespace LibreLancer.Net
         private IUIThread mainThread;
         private Thread networkThread = null!;
         private NetManager client = null!;
-        public string AppIdentifier = LNetConst.DEFAULT_APP_IDENT;
+        public string AppIdentifier = LNetConst.DefaultAppIdent;
 
         public int MaxSequencedSize => 500; // Min safe UDP packet size - 8 bytes overhead
         public event Action<LocalServerInfo>? ServerFound;
@@ -162,13 +163,13 @@ namespace LibreLancer.Net
             ConnectInternal(endPoint, null);
         }
 
-        private void ConnectInternal(IPEndPoint endPoint, string? token)
+        private void ConnectInternal(IPEndPoint endPoint, AuthenticationInfo? token)
         {
             var dw = new PacketWriter();
             dw.Put(AppIdentifier + GeneratedProtocol.PROTOCOL_HASH);
-            if (!string.IsNullOrEmpty(token))
+            if (token != null)
             {
-                dw.Put(token);
+                token.Value.Put(dw);
             }
 
             if (!running)
@@ -209,7 +210,7 @@ namespace LibreLancer.Net
 
             if (IPAddress.TryParse(str, out var ip))
             {
-                endpoint = new IPEndPoint(ip, LNetConst.DEFAULT_PORT);
+                endpoint = new IPEndPoint(ip, LNetConst.DefaultPort);
                 return true;
             }
 
@@ -242,7 +243,7 @@ namespace LibreLancer.Net
 
             if (TryResolve(str, out ip))
             {
-                endpoint = new IPEndPoint(ip, LNetConst.DEFAULT_PORT);
+                endpoint = new IPEndPoint(ip, LNetConst.DefaultPort);
                 return true;
             }
 
@@ -284,13 +285,24 @@ namespace LibreLancer.Net
 
                 if (token != null)
                 {
-                    ConnectInternal(loginEndpoint, token);
+                    ConnectInternal(loginEndpoint, new(token));
                 }
                 else
                 {
                     FLLog.Error("Http", "Login failed");
                     mainThread.QueueUIThread(() => AuthenticationRequired?.Invoke(true));
                 }
+            });
+        }
+
+        void OnDisconnected(DisconnectReason reason, string extraInfo)
+        {
+            mainThread.QueueUIThread(() =>
+            {
+                FLLog.Info("Net", $"Remote disconnected for reason '{reason}' ({extraInfo})");
+                Disconnected?.Invoke(reason == DisconnectReason.Unknown
+                    ? DisconnectReason.ConnectionError
+                    : reason);
             });
         }
 
@@ -306,6 +318,7 @@ namespace LibreLancer.Net
                 IPv6Enabled = true,
                 NatPunchEnabled = true,
                 EnableStatistics = true,
+                UnsyncedEvents = true,
                 ChannelsCount = 3
             };
             listener.NetworkReceiveUnconnectedEvent += (remote, npr, type) =>
@@ -354,7 +367,7 @@ namespace LibreLancer.Net
                     info.EndPoint.Port = (int) msg.GetVariableUInt32();
 
                     PacketWriter writer = new PacketWriter();
-                    writer.Put(LNetConst.PING_MAGIC);
+                    writer.Put(LNetConst.PingMagic);
                     client.SendUnconnectedMessage(writer, remote);
 
                     lock (srvinfo)
@@ -393,29 +406,7 @@ namespace LibreLancer.Net
 #endif
                     var reader = new PacketReader(msg);
                     var pkt = Packets.Read(reader);
-                    if (connecting)
-                    {
-                        if (pkt is GuidAuthenticationPacket)
-                        {
-                            FLLog.Info("Net", "GUID Request Received");
-                            SendPacket(new AuthenticationReplyPacket() { Guid = this.UUID },
-                                PacketDeliveryMethod.ReliableOrdered);
-                        }
-                        else if (pkt is LoginSuccessPacket)
-                        {
-                            FLLog.Info("Client", "Login success");
-                            connecting = false;
-                        }
-                        else
-                        {
-                            FLLog.Info("Net", $"Invalid login packet {pkt.GetType()}");
-                            client.DisconnectAll();
-                        }
-                    }
-                    else
-                    {
-                        packets.Enqueue(pkt);
-                    }
+                    packets.Enqueue(pkt);
 #if !DEBUG
                 }
 
@@ -427,40 +418,66 @@ namespace LibreLancer.Net
 #endif
             };
 
+            listener.PeerConnectedEvent += (peer) =>
+            {
+                FLLog.Info("Client", $"Connected to {peer.Address}:{peer.Port}");
+                connecting = false;
+            };
+
             listener.PeerDisconnectedEvent += (peer, info) =>
             {
                 var additional = new PacketReader(info.AdditionalData);
 
-                if (additional.TryGetDisconnectReason(out var reason) &&
-                    connecting &&
-                    reason == DisconnectReason.TokenRequired &&
-                    additional.TryGetString(out var url))
+                if (additional.TryGetDisconnectReason(out var reason)
+                    && connecting
+                    && reason == DisconnectReason.AuthenticationInfo
+                    && additional.TryGetByte(out var authKindByte))
                 {
-                    loginEndpoint = new IPEndPoint(peer.Address, peer.Port);
-                    Task.Run(async () =>
+                    var authKind = (AuthenticationKind)authKindByte;
+                    if (authKind == AuthenticationKind.GUID)
                     {
-                        loginServer = await http.LoginServerInfo(url);
-
-                        if (loginServer != null)
+                        // Create derived guid using server's identifier
+                        Span<byte> data = stackalloc byte[32];
+                        Span<byte> hashed = stackalloc byte[32];
+                        UUID.TryWriteBytes(data);
+                        var serverData = data.Slice(16);
+                        for (int i = 0; i < 16; i++)
                         {
-                            mainThread.QueueUIThread(() => AuthenticationRequired?.Invoke(false));
+                            if (!additional.TryGetByte(out serverData[i]))
+                            {
+                                OnDisconnected(DisconnectReason.ConnectionError, "Bad authentication handshake");
+                                return;
+                            }
                         }
-                        else
+                        HMACSHA256.HashData(data.Slice(0, 16), serverData, hashed);
+                        var serverGuid = new Guid(hashed.Slice(0, 16));
+                        ConnectInternal(new(peer.Address, peer.Port), new(serverGuid));
+                    }
+                    else if(additional.TryGetString(out var url))
+                    {
+                        loginEndpoint = new IPEndPoint(peer.Address, peer.Port);
+                        Task.Run(async () =>
                         {
-                            FLLog.Error("Net", "Remote disconnected with invalid login server");
-                            mainThread.QueueUIThread(() => { Disconnected?.Invoke(DisconnectReason.ConnectionError); });
-                        }
-                    });
+                            loginServer = await http.LoginServerInfo(url);
+                            if (loginServer != null)
+                            {
+                                mainThread.QueueUIThread(() => AuthenticationRequired?.Invoke(false));
+                            }
+                            else
+                            {
+                                FLLog.Error("Net", "Remote disconnected with invalid login server");
+                                mainThread.QueueUIThread(() => { Disconnected?.Invoke(DisconnectReason.ConnectionError); });
+                            }
+                        });
+                    }
+                    else
+                    {
+                        OnDisconnected(DisconnectReason.ConnectionError, "Bad authentication handshake");
+                    }
                 }
                 else
                 {
-                    mainThread.QueueUIThread(() =>
-                    {
-                        FLLog.Info("Net", $"Remote disconnected for reason '{reason}' ({info.Reason})");
-                        Disconnected?.Invoke(reason == DisconnectReason.Unknown
-                            ? DisconnectReason.ConnectionError
-                            : reason);
-                    });
+                    OnDisconnected(reason, info.Reason.ToString());
                 }
             };
 
@@ -473,9 +490,9 @@ namespace LibreLancer.Net
                     Interlocked.Decrement(ref localPeerRequests);
                     lock (srvinfo) srvinfo.Clear();
                     var dw = new PacketWriter();
-                    dw.Put(LNetConst.BROADCAST_KEY);
+                    dw.Put(LNetConst.BroadcastKey);
                     FLLog.Debug("Net", "Sending broadcast");
-                    client.SendBroadcast(dw, LNetConst.BROADCAST_PORT);
+                    client.SendBroadcast(dw, LNetConst.BroadcastPort);
                 }
 
                 // ping servers
@@ -489,7 +506,7 @@ namespace LibreLancer.Net
                         {
                             inf.LastPingTime = nowMs;
                             var om = new PacketWriter();
-                            om.Put(LNetConst.PING_MAGIC);
+                            om.Put(LNetConst.PingMagic);
                             client.SendUnconnectedMessage(om, inf.EndPoint);
                         }
                     }
@@ -497,7 +514,7 @@ namespace LibreLancer.Net
 
                 // events
                 client.PollEvents();
-                Thread.Sleep(1);
+                Thread.Sleep(5);
             }
 
             client.DisconnectAll();

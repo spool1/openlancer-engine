@@ -8,4 +8,6 @@ bpy.ops.export_scene.gltf(filepath=GLTF_FILE,
                           filter_glob='',
                           export_extras=True,
                           use_mesh_edges=True,
+                          export_apply=True,
+                          export_merge_animation='NLA_TRACK',
                           export_image_format='AUTO')

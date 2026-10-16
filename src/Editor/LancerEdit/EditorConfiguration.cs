@@ -78,6 +78,18 @@ namespace LancerEdit
         public int WindowHeight = 600;
         [Entry("per_pixel_lighting")]
         public bool PerPixelLighting = true;
+        [Entry("trading_planner_include_jumpholes")]
+        public bool TradingPlannerIncludeJumpholes = true;
+        [Entry("trading_planner_shown_routes")]
+        public int TradingPlannerShownRoutes = 500;
+        [Entry("trading_planner_map_routes")]
+        public int TradingPlannerMapRoutes = 80;
+        [Entry("trading_planner_system_spacing")]
+        public float TradingPlannerSystemSpacing = 40f;
+        [Entry("trading_planner_sector_spacing")]
+        public float TradingPlannerSectorSpacing = 30f;
+        [Entry("trading_planner_system_exclusion")]
+        public string TradingPlannerSystemExclusion = "";
 
         public string AutoLoadPath = "";
 
@@ -171,7 +183,13 @@ namespace LancerEdit
                 .Entry("collada_visible", ColladaVisible)
                 .Entry("window_width", WindowWidth)
                 .Entry("window_height", WindowHeight)
-                .Entry("per_pixel_lighting", PerPixelLighting);
+                .Entry("per_pixel_lighting", PerPixelLighting)
+                .Entry("trading_planner_include_jumpholes", TradingPlannerIncludeJumpholes)
+                .Entry("trading_planner_shown_routes", TradingPlannerShownRoutes)
+                .Entry("trading_planner_map_routes", TradingPlannerMapRoutes)
+                .Entry("trading_planner_system_spacing", TradingPlannerSystemSpacing)
+                .Entry("trading_planner_sector_spacing", TradingPlannerSectorSpacing)
+                .OptionalEntry("trading_planner_system_exclusion", TradingPlannerSystemExclusion);
             foreach (var fav in Favorites)
                 c.Entry("favorite", Encode(fav.Name), Encode(fav.FullPath));
             if (!string.IsNullOrWhiteSpace(AutoLoadPath))

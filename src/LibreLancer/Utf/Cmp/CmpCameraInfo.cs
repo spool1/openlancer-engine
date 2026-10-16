@@ -8,10 +8,11 @@ namespace LibreLancer.Utf.Cmp
 {
     public class CmpCameraInfo
     {
-        public float Fovx;
-        public float Fovy;
-        public float Znear;
-        public float Zfar;
+        // Some defaults just in case.
+        public float Fovx = 0.6451778f;
+        public float Fovy = 0.514412f;
+        public float Znear = 0.1f;
+        public float Zfar = 6f;
 
         public CmpCameraInfo(IntermediateNode node)
         {
