@@ -88,7 +88,7 @@ namespace LibreLancer
             Config.Settings.RenderContext = RenderContext;
             Config.Settings.Validate();
             // Cache
-            var vfs = FileSystem.FromPath(_cfg.FreelancerPath);
+            var vfs = _cfg.CustomFileSystem?.Invoke() ?? FileSystem.FromPath(_cfg.FreelancerPath);
 			ResourceManager = new GameResourceManager(this, vfs);
 			// Init Audio
 			FLLog.Info("Audio", "Initialising Audio");

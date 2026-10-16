@@ -29,6 +29,11 @@ namespace LibreLancer
         [XmlIgnore]
 		public Func<FreelancerGame, GameState>? CustomState;
 
+        // A host can give the game its file system, for example a mod overlay. When it is null, the game reads
+        // freelancer_path.
+        [XmlIgnore]
+        public Func<Data.IO.FileSystem>? CustomFileSystem;
+
         public event Action<GameConfig>? Saved;
         private Func<string> filePath;
 
