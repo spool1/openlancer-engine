@@ -33,6 +33,61 @@ public class StoryCutsceneIniTests
     {
         var data = RetailData.Open();
         var keys = new List<string>();
+        foreach (var (path, section, encounter) in RetailEncounters(data))
+        {
+            var entry = section.SingleOrDefault(x => IsDeclineKey(x.Name));
+            Assert.Equal(entry?[0].ToString(), encounter.Reject);
+            if (entry != null)
+            {
+                Assert.True(data.VFS.FileExists(data.DataFilePath(encounter.Reject!)), $"{path}: {encounter.Reject}");
+                keys.Add(entry.Name.ToLowerInvariant());
+            }
+        }
+
+        Assert.Equal(["decline: 19", "reject: 4"],
+            keys.GroupBy(x => x).OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Count()}"));
+    }
+
+    // RoomGameplay.PlayScript plays the action of an encounter, or its offer, its decision and then its accept or
+    // decline script. In the retail data, only three offers do not have one of these scripts: the decline script.
+    // For them, PlayScript ends the declined offer without a cutscene. Each other script exists.
+    [Fact]
+    public void OnlyThreeRetailOffersHaveNoScriptForAState()
+    {
+        var data = RetailData.Open();
+        var missing = new List<string>();
+        foreach (var (path, _, encounter) in RetailEncounters(data))
+        {
+            (string State, string? Script)[] states = string.IsNullOrEmpty(encounter.Offer)
+                ? [("action", encounter.Action)]
+                : [("offer", encounter.Offer), ("decision", encounter.Decision), ("accept", encounter.Accept),
+                    ("decline", encounter.Reject)];
+            foreach (var (state, script) in states)
+            {
+                if (string.IsNullOrEmpty(script))
+                {
+                    missing.Add($"{Path.GetFileName(path)}: {state}");
+                }
+                else
+                {
+                    Assert.True(data.VFS.FileExists(data.DataFilePath(script)), $"{path}: {script}");
+                }
+            }
+        }
+
+        Assert.Equal(
+        [
+            "M011_s067a_Iw02_03_offer.ini: decline",
+            "M012_s071a_St02_01_offer.ini: decline",
+            "M013_s072ab_St01_01_offer.ini: decline",
+        ], missing.Order(StringComparer.OrdinalIgnoreCase));
+    }
+
+    // Each [CharacterEncounter] section of the retail mission INIs, with the encounter that StoryCutsceneIni parses
+    // from it.
+    private static IEnumerable<(string Path, Section Section, StoryEncounter Encounter)> RetailEncounters(
+        RetailData data)
+    {
         foreach (var file in Directory.EnumerateFiles(Path.Combine(data.Folder, "DATA", "MISSIONS"), "*.ini",
                      SearchOption.AllDirectories))
         {
@@ -49,19 +104,9 @@ public class StoryCutsceneIniTests
             Assert.Equal(sections.Count, encounters.Count);
             foreach (var (section, encounter) in sections.Zip(encounters))
             {
-                var entry = section.SingleOrDefault(x => IsDeclineKey(x.Name));
-                Assert.Equal(entry?[0].ToString(), encounter.Reject);
-                if (entry != null)
-                {
-                    Assert.True(data.VFS.FileExists(data.DataFilePath(encounter.Reject!)),
-                        $"{path}: {encounter.Reject}");
-                    keys.Add(entry.Name.ToLowerInvariant());
-                }
+                yield return (path, section, encounter);
             }
         }
-
-        Assert.Equal(["decline: 19", "reject: 4"],
-            keys.GroupBy(x => x).OrderBy(x => x.Key).Select(x => $"{x.Key}: {x.Count()}"));
     }
 
     private static bool IsDeclineKey(string name) =>

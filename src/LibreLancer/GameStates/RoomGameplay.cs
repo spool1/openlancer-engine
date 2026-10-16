@@ -836,10 +836,20 @@ namespace LibreLancer
                     break;
             }
 
-            var script =
-                new ThnScript(session.Game.GameData.VFS.ReadAllBytes(session.Game.GameData.Items.DataPath(scName)!),
-                    session.Game.GameData.Items.ThornReadCallback, scName!);
             currentCutscene = ct;
+            var path = session.Game.GameData.Items.DataPath(scName);
+            if (path == null)
+            {
+                // Three retail offers have no decline script (s067a, s071a and s072ab).
+                // The state then ends as if its script ended at once.
+                FLLog.Warning("Thn", $"{ct.RefPath} has no script for {cState}");
+                waitingForFinish = null;
+                EndCutsceneScript();
+                return;
+            }
+
+            var script = new ThnScript(session.Game.GameData.VFS.ReadAllBytes(path),
+                session.Game.GameData.Items.ThornReadCallback, scName!);
             RoomDoSceneScript(script, ScriptState.Cutscene);
         }
 
@@ -1205,56 +1215,7 @@ namespace LibreLancer
 
             if (currentCutscene != null)
             {
-                if (cState == CutsceneState.Decision)
-                {
-                    return;
-                }
-
-                FadeOut(0.25, () =>
-                {
-                    RoomDoSceneScript(null, ScriptState.None);
-                    ui.Visible = true;
-                    FLLog.Info("Thn", "Finished cutscene");
-
-                    if (cState == CutsceneState.Regular ||
-                        cState == CutsceneState.Accept ||
-                        cState == CutsceneState.Reject)
-                    {
-                        var finishedCutscene = currentCutscene;
-                        session.FinishCutscene(finishedCutscene);
-
-                        if (finishedCutscene.Encounters[0].RelocatePlayer != null)
-                        {
-                            var relocate = finishedCutscene.Encounters[0].RelocatePlayer!;
-                            currentCutscene = null;
-                            if (relocate.Equals("Spaceflight", StringComparison.OrdinalIgnoreCase))
-                            {
-                                SendLaunch();
-                            }
-                            else
-                            {
-                                var rm = currentBase.Rooms.Get(relocate);
-                                Game.ChangeState(new RoomGameplay(Game, session, baseId, rm));
-                            }
-                        }
-                        else
-                        {
-                            currentCutscene = null;
-
-                            if (toPlay.Count > 0)
-                            {
-                                ProcessNextCutscene();
-                            }
-                        }
-                    }
-                    else if (cState == CutsceneState.Offer)
-                    {
-                        PlayScript(currentCutscene, CutsceneState.Decision);
-                        ui.Event("MissionOffer", currentCutscene.Encounters[0].MissionTextId);
-                    }
-
-                    FadeIn(0.2, 0.25);
-                });
+                EndCutsceneScript();
             }
             else if (currentState == ScriptState.Launch)
             {
@@ -1268,6 +1229,62 @@ namespace LibreLancer
                 SetRoomCameraAndShip();
                 animatingLetterbox = true;
             }
+        }
+
+        // Fades to the room when a script of the current story cutscene ends. The end of the offer starts the
+        // decision, and the decision waits for the answer of the player.
+        private void EndCutsceneScript()
+        {
+            if (cState == CutsceneState.Decision)
+            {
+                return;
+            }
+
+            FadeOut(0.25, () =>
+            {
+                RoomDoSceneScript(null, ScriptState.None);
+                ui.Visible = true;
+                FLLog.Info("Thn", "Finished cutscene");
+
+                if (cState == CutsceneState.Regular ||
+                    cState == CutsceneState.Accept ||
+                    cState == CutsceneState.Reject)
+                {
+                    var finishedCutscene = currentCutscene!;
+                    session.FinishCutscene(finishedCutscene);
+
+                    if (finishedCutscene.Encounters[0].RelocatePlayer != null)
+                    {
+                        var relocate = finishedCutscene.Encounters[0].RelocatePlayer!;
+                        currentCutscene = null;
+                        if (relocate.Equals("Spaceflight", StringComparison.OrdinalIgnoreCase))
+                        {
+                            SendLaunch();
+                        }
+                        else
+                        {
+                            var rm = currentBase.Rooms.Get(relocate);
+                            Game.ChangeState(new RoomGameplay(Game, session, baseId, rm));
+                        }
+                    }
+                    else
+                    {
+                        currentCutscene = null;
+
+                        if (toPlay.Count > 0)
+                        {
+                            ProcessNextCutscene();
+                        }
+                    }
+                }
+                else if (cState == CutsceneState.Offer)
+                {
+                    PlayScript(currentCutscene!, CutsceneState.Decision);
+                    ui.Event("MissionOffer", currentCutscene!.Encounters[0].MissionTextId);
+                }
+
+                FadeIn(0.2, 0.25);
+            });
         }
 
         private IEnumerable<ThnScript> Scripts(params IEnumerable<ThnScript?>?[] objects)
