@@ -528,6 +528,13 @@ namespace LibreLancer.Render
             DebugRenderer.Dispose();
             QuadBuffer.Dispose();
             Beams.Dispose();
+            // Each asteroid field holds a mesh with its own vertex buffer. LoadZones frees the meshes of the fields
+            // that it replaces, so the renderer frees the meshes of the last fields.
+            if (AsteroidFields != null)
+            {
+                foreach (var f in AsteroidFields) f.Dispose();
+                AsteroidFields = [];
+            }
         }
     }
 }
