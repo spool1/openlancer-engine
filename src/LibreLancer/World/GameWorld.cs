@@ -125,13 +125,16 @@ namespace LibreLancer.World
             g.SystemObject = obj;
             g.SetTransform(new Transform3D(obj.Position, obj.Rotation));
 
+            // The equipment draws only when the object draws (InitWithArchetype above). Without a renderer, for
+            // example in a headless client scene, the equipment gets the server type, which loads no GPU resources.
+            var equipmentType = Renderer != null ? DefaultObjectType : EquipmentType.Server;
             if (loadout != null)
             {
-                g.SetLoadout(loadout, res, snd, DefaultObjectType);
+                g.SetLoadout(loadout, res, snd, equipmentType);
             }
             else if (arch.Loadout != null)
             {
-                g.SetLoadout(arch.Loadout, res, snd, DefaultObjectType);
+                g.SetLoadout(arch.Loadout, res, snd, equipmentType);
             }
 
             if (g.RenderComponent is ModelRenderer mr)
