@@ -9,6 +9,7 @@ using LibreLancer.Data;
 using LibreLancer.Graphics;
 using LibreLancer.Render;
 using LibreLancer.Resources;
+using LibreLancer.Utf.Cmp;
 using LibreLancer.Utf.Mat;
 
 namespace LibreLancer.Utf.Dfm
@@ -41,6 +42,9 @@ namespace LibreLancer.Utf.Dfm
         public LeafNode? MaxDV { get; set; }
         public LeafNode? UVVertexId { get; set; }
         public LeafNode? UVDefaultList { get; set; }
+
+        // The eyes of a head. Null when the mesh has no UV bone or no eye face group.
+        internal DfmEyeRig? EyeRig { get; }
 
         private ResourceManager res = null!;
         private VertexBuffer vertexBuffer = null!;
@@ -155,6 +159,8 @@ namespace LibreLancer.Utf.Dfm
                     default: throw new Exception("Invalid node in " + root.Name + ": " + node.Name);
                 }
             }
+
+            EyeRig = DfmEyeRig.Create(this);
         }
 
         public void CalculateBoneBounds(Dictionary<int, DfmPart> parts)
@@ -310,7 +316,7 @@ namespace LibreLancer.Utf.Dfm
                 }
                 buffer.AddCommand(
                     mat.Render,
-                    null,
+                    FaceGroupAnim(faceGroup),
                     wh,
                     light,
                     vertexBuffer,
@@ -325,6 +331,11 @@ namespace LibreLancer.Utf.Dfm
                 );
             }
         }
+
+        // The material animation of a face group in a draw. An eye face group moves its texture by the eye offset of
+        // the character, which this sets from the pose of the skinning. The other face groups do not move.
+        internal MaterialAnim? FaceGroupAnim(FaceGroup group) =>
+            skinning != null && EyeRig != null && EyeRig.Moves(group) ? EyeRig.Update(skinning) : null;
 
         private DfmSkinning? skinning;
 

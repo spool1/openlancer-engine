@@ -21,6 +21,8 @@ namespace LibreLancer.Render
         public BoneInstance?[] Instances;
         public int BufferOffset;
         public BoundingBox BoundingBox;
+        // The texture offset of the eyes of this character. DfmEyeRig sets it before each draw.
+        internal MaterialAnim? EyeOffset;
 
         public DfmSkinning(DfmFile dfm)
         {

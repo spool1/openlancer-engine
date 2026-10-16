@@ -11,6 +11,11 @@ namespace LibreLancer.Utf.Cmp
 		public int MAFlags;
 		public float[] MADeltas = [];
 
+		// An animation with no keys. The code sets its offset, for example DfmEyeRig for the eyes of a head.
+		internal MaterialAnim()
+		{
+		}
+
 		public MaterialAnim(IntermediateNode node)
 		{
 			foreach (var child in node.Children)
@@ -102,6 +107,13 @@ namespace LibreLancer.Utf.Cmp
                 uScale *= 1 + (t * uVelocityScale);
                 vScale *= 1 + (t * vVelocityScale);
             }
+        }
+
+        // Sets the offset. Update calculates the offset again from the keys.
+        internal void SetOffset(float u, float v)
+        {
+            uOffset = u;
+            vOffset = v;
         }
     }
 }
