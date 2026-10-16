@@ -22,6 +22,11 @@ CIMGUI_API int igGuizmoIsOver()
     return ImGuizmo::IsOver() ? 1 : 0;
 }
 
+CIMGUI_API void igGuizmoEnable(int enable)
+{
+    ImGuizmo::Enable(enable != 0);
+}
+
 CIMGUI_API void igGuizmoSetID(int id)
 {
     ImGuizmo::SetID(id);

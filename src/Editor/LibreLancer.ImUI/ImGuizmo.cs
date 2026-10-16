@@ -58,6 +58,12 @@ public class ImGuizmo
     [DllImport("cimgui", EntryPoint = "igGuizmoIsOver")]
     public static extern bool IsOver();
 
+    [DllImport("cimgui", EntryPoint = "igGuizmoEnable")]
+    static extern void igGuizmoEnable(int enable);
+
+    // Enable(false) ends the drag of the gizmo, also when the gizmo did not see the mouse release.
+    public static void Enable(bool enable) => igGuizmoEnable(enable ? 1 : 0);
+
     [DllImport("cimgui", EntryPoint = "igGuizmoSetID")]
     public static extern void SetID(int id);
 

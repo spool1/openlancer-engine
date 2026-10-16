@@ -83,6 +83,7 @@ CIMGUI_API void igGuizmoBeginFrame();
 CIMGUI_API void igGuizmoSetOrthographic(int orthographic);
 CIMGUI_API int igGuizmoIsUsing();
 CIMGUI_API int igGuizmoIsOver();
+CIMGUI_API void igGuizmoEnable(int enable);
 CIMGUI_API void igGuizmoSetID(int id);
 CIMGUI_API void igGuizmoSetRect(float x, float y, float width, float height);
 CIMGUI_API int igGuizmoManipulate(float* view, float* projection, int operation, int mode, float* matrix, float* delta);
