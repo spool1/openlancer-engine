@@ -13,8 +13,8 @@ namespace LibreLancer.Thn
 		Orientation = 4,
 		EntityRelative = 32,
 		LookAt = 8,
-		OrientationRelative = 128, // Check?
-		ParentChild = 64 // Unknown
+		OrientationRelative = 128,
+		ParentChild = 64
 	}
 }
 

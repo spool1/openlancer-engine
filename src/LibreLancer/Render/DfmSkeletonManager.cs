@@ -539,7 +539,7 @@ namespace LibreLancer.Render
             }
 
             UpdateBones();
-            posed = true;
+            Posed = true;
 
             RemoveHiddenMotions();
             UpdateBounds();
@@ -675,8 +675,8 @@ namespace LibreLancer.Render
         private readonly List<IKState> ikOrder = [];
         // The bones that IK turned in the last frame.
         private readonly HashSet<BoneInstance> ikBones = [];
-        // An animation set the pose. Before that, UpdateBones gives a flat pose.
-        private bool posed;
+        // An animation set the pose. Before that, the bones are in the bind pose, and UpdateBones gives a flat pose.
+        public bool Posed { get; private set; }
 
         // Sets the goal of an owner for the next ApplyIK. A goal from a different owner on the same effector bone
         // replaces the old goal. After that, the goals of the old owner on that bone have no effect.
@@ -768,7 +768,7 @@ namespace LibreLancer.Render
                 }
 
                 ikGoals.Remove(bone);
-                if (!posed)
+                if (!Posed)
                 {
                     continue;
                 }
@@ -850,7 +850,7 @@ namespace LibreLancer.Render
         // Turns the bones of the goals after the animation. modelToWorld is the world transform of the body.
         public void ApplyIK(Transform3D modelToWorld)
         {
-            if (!posed || (ikGoals.Count == 0 && ikEnded.Count == 0 && ikBones.Count == 0))
+            if (!Posed || (ikGoals.Count == 0 && ikEnded.Count == 0 && ikBones.Count == 0))
             {
                 return;
             }

@@ -28,7 +28,7 @@ public class ThnPathAnimationTests
     // Makes a path from a retail path_data string, as the Lua runtime parses it: OPEN or CLOSED, then {x, y, z} for
     // a point and {w, x, y, z} for an orientation. The test does not use the Lua runtime, because its compiler is
     // native.
-    private static MotionPath ParsePath(string data)
+    internal static MotionPath ParsePath(string data)
     {
         var table = new ThornTable();
         table.Append(data.TrimStart().StartsWith("CLOSED", StringComparison.Ordinal) ? 0 : 1);
@@ -47,10 +47,10 @@ public class ThnPathAnimationTests
     }
 
     // One key of a path_data string: a point and an orientation.
-    private static string Key(Vector3 point, Quaternion orientation) => FormattableString.Invariant(
+    internal static string Key(Vector3 point, Quaternion orientation) => FormattableString.Invariant(
         $"{{{point.X},{point.Y},{point.Z}}}, {{{orientation.W},{orientation.X},{orientation.Y},{orientation.Z}}}, ");
 
-    private static ThnSceneObject PathEntity(MotionPath path, Quaternion rotation) => new()
+    internal static ThnSceneObject PathEntity(MotionPath path, Quaternion rotation) => new()
     {
         Name = "path",
         Rotate = rotation,

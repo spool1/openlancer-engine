@@ -10,7 +10,7 @@ namespace LibreLancer.Thn.Events
 {
     /*
      * NOTES:
-     * Offset does not affect LOOK_AT flags (?)
+     * LOOK_AT aims at the parent plus the offset
      * LOOK_AT rotates directly, object and camera
      * no need for LookAtFunc
      *
@@ -46,8 +46,10 @@ namespace LibreLancer.Thn.Events
         public AttachFlags Flags;
         public string? TargetPart;
         public Vector3 Offset;
+        public ThnAxis Up = ThnAxis.YAxis;
+        public ThnAxis Front = ThnAxis.NegZAxis;
 
-        public AttachEntityEvent(ThornTable table) : base(table)
+        public AttachEntityEvent(ThornTable table, string source) : base(table)
         {
             if (!GetProps(table, out var props))
             {
@@ -58,6 +60,16 @@ namespace LibreLancer.Thn.Events
             GetValue(props, "flags", out Flags, AttachFlags.Position | AttachFlags.Orientation);
             GetValue(props, "target_part", out TargetPart);
             GetValue(props, "offset", out Offset);
+
+            if (props.TryGetValue("up", out var o))
+            {
+                Up = ThnTypes.ConvertAxis(o, source);
+            }
+
+            if (props.TryGetValue("front", out o))
+            {
+                Front = ThnTypes.ConvertAxis(o, source);
+            }
         }
 
         public override void Run(ThnScriptInstance instance)
@@ -76,13 +88,6 @@ namespace LibreLancer.Thn.Events
 
             // Attach GameObjects to eachother
             var tgt = GetAttachParent(objB, TargetType, TargetPart);
-            Quaternion lastRotate = Quaternion.Identity;
-            if ((Flags & AttachFlags.Orientation) == AttachFlags.Orientation &&
-                (Flags & AttachFlags.OrientationRelative) == AttachFlags.OrientationRelative)
-            {
-                var (_, tr) = tgt.GetTransform(false);
-                lastRotate = tr;
-            }
             var attachment = new ThnAttachment(tgt)
             {
                 Position = ((Flags & AttachFlags.Position) == AttachFlags.Position),
@@ -90,9 +95,17 @@ namespace LibreLancer.Thn.Events
                 OrientationRelative = ((Flags & AttachFlags.OrientationRelative) == AttachFlags.OrientationRelative),
                 EntityRelative = ((Flags & AttachFlags.EntityRelative) == AttachFlags.EntityRelative),
                 LookAt = ((Flags & AttachFlags.LookAt) == AttachFlags.LookAt),
-                LastRotate = lastRotate,
+                ParentChild = ((Flags & AttachFlags.ParentChild) == AttachFlags.ParentChild),
                 Offset = Offset,
+                Up = ThnTypes.AxisVector(Up),
+                Front = ThnTypes.AxisVector(Front),
             };
+            // Retail records the pose of the child relative to the parent when the attach starts. When the parent has
+            // no pose yet, the child records it at its first update after the parent has a pose.
+            if (tgt.HasPose)
+            {
+                attachment.Record(objA.GetTransform());
+            }
             objA.Attachments.Add(attachment);
             instance.AddProcessor(new AttachEntityProcessor(Duration, attachment));
         }

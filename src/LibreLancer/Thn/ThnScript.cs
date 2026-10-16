@@ -173,7 +173,7 @@ namespace LibreLancer.Thn
                 case EventTypes.StartSpatialPropAnim:
                     return new StartSpatialPropAnimEvent(table, source);
                 case EventTypes.AttachEntity:
-                    return new AttachEntityEvent(table);
+                    return new AttachEntityEvent(table, source);
                 case EventTypes.ConnectHardpoints:
                     return new ConnectHardpointsEvent(table);
                 case EventTypes.StartMotion:

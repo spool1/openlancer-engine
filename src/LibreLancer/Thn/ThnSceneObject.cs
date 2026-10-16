@@ -46,51 +46,37 @@ public class ThnSceneObject
         }
 
         Transform3D self = new(Translate, Rotate);
-        foreach (var t in Attachments.Where(x => !x.LookAt))
+        foreach (var t in Attachments.Where(x => !x.Pending))
         {
             var parent = t.Parent.GetTransform(t.PathLookAt);
-            if (t.Orientation)
-            {
-                if (t.OrientationRelative)
-                {
-                    var qCurrent = parent.Orientation;
-                    var diff = qCurrent * Quaternion.Inverse(t.LastRotate);
-                    var qChild = self.Orientation;
-                    self.Orientation = qChild * diff;
-                    t.LastRotate = qCurrent;
-                }
-                else
-                {
-                    self.Orientation = parent.Orientation;
-                }
-            }
-
+            // PARENT_CHILD keeps the object rigid to the parent and reads no offset.
             if (t.Position)
             {
-                if (t.Offset != Vector3.Zero)
-                {
-                    var off = t.Offset;
-                    if (t.EntityRelative)
-                    {
-                        off = Vector3.Transform(t.Offset, parent.Orientation);
-                    }
+                self.Position = t.ParentChild ? t.Rigid(parent).Position : t.Target(parent);
+            }
 
-                    var tr = parent * new Transform3D(off, Quaternion.Identity);
-                    self.Position = tr.Position;
-                }
-                else
-                {
-                    self.Position = parent.Position;
-                }
+            if (t.Orientation)
+            {
+                self.Orientation = t.ParentChild || t.OrientationRelative
+                    ? t.Rigid(parent).Orientation
+                    : parent.Orientation;
             }
         }
 
-        // LookAt must be processed after position/orientation
-        foreach (var t in Attachments.Where(x => x.LookAt))
+        // Retail runs the path animations of an object before its attachments, so a look aims from the position of
+        // this frame. A look applies only when the attachment writes no orientation and is not rigid.
+        foreach (var t in Attachments.Where(x => x.LookAt && !x.Orientation && !x.ParentChild))
         {
-            var parent = t.Parent.GetTransform(t.PathLookAt);
-            self.Orientation =
-                QuaternionEx.LookRotation(Vector3.Normalize(self.Position - parent.Position), Vector3.UnitY);
+            var direction = self.Position - t.Target(t.Parent.GetTransform(t.PathLookAt));
+            // Retail does not turn an object that is on its target.
+            if (direction.LengthSquared() < 1e-8f)
+            {
+                continue;
+            }
+
+            // The front axis points at the target, and the up axis leans toward the scene up.
+            self.Orientation = QuaternionEx.LookRotation(Vector3.Normalize(direction), Vector3.UnitY) *
+                               Quaternion.Inverse(QuaternionEx.LookRotation(-t.Front, t.Up));
         }
 
         return self;
@@ -98,6 +84,12 @@ public class ThnSceneObject
 
     public void Update()
     {
+        // An attachment that started before its parent had a pose records its relative pose now.
+        foreach (var t in Attachments.Where(x => x.Pending && x.Parent.HasPose))
+        {
+            t.Record(GetTransform());
+        }
+
         var self = GetTransform();
         Translate = self.Position;
         Rotate = self.Orientation;
@@ -144,22 +136,45 @@ public class ThnSceneObject
 public class ThnAttachment(ThnAttachParent parent)
 {
     public Vector3 Offset;
-    public Quaternion LastRotate;
     public bool Position;
     public bool Orientation;
     public bool OrientationRelative;
     public bool EntityRelative;
     public bool LookAt;
     public bool PathLookAt;
+    public bool ParentChild;
+    // The pose of the object relative to the parent when the attachment starts. PARENT_CHILD and
+    // ORIENTATION_RELATIVE keep it. It is null until the parent has a pose.
+    public Transform3D? Relative;
+    // The axes of the object that LOOK_AT aims at the target and turns toward the scene up.
+    public Vector3 Front = -Vector3.UnitZ;
+    public Vector3 Up = Vector3.UnitY;
     // The event has ended. ThnSceneObject.Update applies the attachment once more, then removes it.
     public bool Expired;
 
     public ThnAttachParent Parent = parent;
+
+    // The attachment reads the relative pose, but it has not recorded it. It writes nothing until it records it.
+    public bool Pending => Relative == null && (ParentChild || (Orientation && OrientationRelative));
+
+    // Records the pose of the object relative to the parent.
+    public void Record(Transform3D obj) => Relative = obj * Parent.GetTransform(PathLookAt).Inverse();
+
+    // The pose that keeps the relative pose of the object to the parent.
+    public Transform3D Rigid(Transform3D parent) => Relative!.Value * parent;
+
+    // The point that POSITION moves the object to and LOOK_AT aims at. The offset is in the scene axes, or in the
+    // axes of the parent with ENTITY_RELATIVE.
+    public Vector3 Target(Transform3D parent) =>
+        parent.Position + (EntityRelative ? Vector3.Transform(Offset, parent.Orientation) : Offset);
 }
 
 public abstract class ThnAttachParent
 {
     public abstract Transform3D GetTransform(bool pathLookAt);
+
+    // False while the parent does not have the pose that it is drawn with.
+    public virtual bool HasPose => true;
 }
 
 public class ThnPathParent(ThnSceneObject Path)
@@ -208,6 +223,11 @@ public class ThnObjectParent(ThnSceneObject obj, IRenderHardpoint? hardpoint, Ri
 
         return obj.GetTransform();
     }
+
+    // A bone or a hardpoint of a character has no pose before the first animation update of the character. Until
+    // then, the bones are in the bind pose, and the first pose can be far from it.
+    public override bool HasPose =>
+        hardpoint == null || obj.Object?.RenderComponent is not CharacterRenderer ch || ch.Skeleton.Posed;
 
     // The transform that UpdateEngineObjects gives to the model. A character stands at its floor height plus
     // the root height of its animation.

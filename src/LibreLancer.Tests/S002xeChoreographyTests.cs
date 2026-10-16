@@ -2,12 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using LibreLancer.Render;
-using LibreLancer.Thn;
 using LibreLancer.Thn.Events;
-using LibreLancer.Thorn;
-using LibreLancer.World;
-using LibreLancer.World.Components;
 using Xunit;
 
 namespace LibreLancer.Tests;
@@ -18,8 +13,6 @@ namespace LibreLancer.Tests;
 public class S002xeChoreographyTests
 {
     private const string Script = @"SCRIPTS\STORY\s002xe_nrml_sinclair_li_01_Cityscape_01.thn";
-    private const string StoryMale = @"CHARACTERS\ANIMATIONS\BodyStoryMale.anm";
-    private const double Frame = 1.0 / 60;
     private static readonly string[] Characters = ["Char_trent", "Char_medic_1", "Char_medic_2", "Char_syd"];
     // The times in seconds at which the replay keeps the poses of the characters.
     private static readonly double[] Times = [55.8, 57.4, 60.0, 62.0, 65.26, 69.9, 72.0, 73.3, 75.8, 77.3];
@@ -29,116 +22,27 @@ public class S002xeChoreographyTests
     private sealed class Replay
     {
         private readonly Dictionary<(double, string), Transform3D> poses = [];
-        private readonly Dictionary<string, Vector3> positions = new(StringComparer.OrdinalIgnoreCase);
+        private readonly RetailThnReplay thn;
 
         // The scene pose of a character at one of the Times.
         public Transform3D Pose(double time, string character) => poses[(time, character)];
 
         // The position of an entity in the script.
-        public Vector3 Position(string entity) => positions[entity];
+        public Vector3 Position(string entity) => thn.Spawn(entity).Position;
 
         public Replay()
         {
-            var data = RetailData.Open();
-            var bytes = data.ReadDataFile(Script);
-            var output = new ThornRunner(ThnScript.ThnEnv, data.ReadThornFile).DoBytes(bytes, Script);
-            // The head and hand motions do not move a character, so the replay does not load them.
-            var animations = data.LoadAnimations(DfmMotionStackTests.GenericMale, StoryMale);
-
-            var entities = new Dictionary<string, ThornTable>(StringComparer.OrdinalIgnoreCase);
-            foreach (var entity in ((ThornTable)output["entities"]).Values.Cast<ThornTable>())
+            // The replay keeps the motions, the moves and the zero-duration attaches of the characters.
+            thn = new RetailThnReplay(Script, RetailThnReplay.MaleBodies, ev =>
+                Characters.Contains(ev.Targets[0], StringComparer.OrdinalIgnoreCase) &&
+                ev is not AttachEntityEvent { Duration: > 0 });
+            foreach (var time in Times)
             {
-                var name = (string)entity["entity_name"];
-                entities[name] = entity;
-                if (entity.TryGetValue("spatialprops", out var sp) && ((ThornTable)sp).TryGetVector3("pos", out var pos))
+                thn.RunTo(time);
+                foreach (var name in Characters)
                 {
-                    positions[name] = pos;
-                }
-            }
-
-            var script = new ThnScript() { Duration = (float)output["duration"] };
-            foreach (var table in ((ThornTable)output["events"]).Values.Cast<ThornTable>())
-            {
-                if (!Characters.Contains((string)((ThornTable)table[3])[1], StringComparer.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                ThnEvent? ev = ThnTypes.Convert<EventTypes>(table[2]) switch
-                {
-                    EventTypes.StartMotion => new StartMotionEvent(table),
-                    EventTypes.StartSpatialPropAnim => new StartSpatialPropAnimEvent(table, Script),
-                    EventTypes.AttachEntity => new AttachEntityEvent(table),
-                    _ => null
-                };
-                if (ev == null || ev is AttachEntityEvent { Duration: > 0 } ||
-                    ev is StartMotionEvent motion && !animations.Scripts.ContainsKey(motion.Animation))
-                {
-                    continue;
-                }
-
-                script.Events.Add(ev);
-            }
-
-            // ThnScript sorts the events in the same way.
-            script.Events = script.Events.OrderBy(x => x.Time).ToList();
-            var instance = new ThnScriptInstance(null!, script);
-            var characters = new List<AnimationComponent>();
-            var names = script.Events.SelectMany(x => x.Targets).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            foreach (var (name, entity) in entities)
-            {
-                if (!names.Contains(name))
-                {
-                    continue;
-                }
-
-                var obj = new ThnSceneObject()
-                {
-                    Name = name, Translate = positions.GetValueOrDefault(name), Rotate = Quaternion.Identity
-                };
-                if (entity.TryGetValue("spatialprops", out var sp) && ((ThornTable)sp).TryGetValue("orient", out var o))
-                {
-                    obj.Rotate = ThnScript.GetQuaternion((ThornTable)o);
-                }
-
-                if (ThnTypes.Convert<EntityTypes>(entity["type"]) == EntityTypes.Deformable)
-                {
-                    var skeleton = data.LoadCostume((string)entity["template_name"]);
-                    Assert.NotNull(skeleton);
-                    var props = (ThornTable)entity["compoundprops"];
-                    skeleton.FloorHeight = (float)props["floor_height"];
-                    obj.Object = new GameObject() { RenderComponent = new CharacterRenderer(skeleton) };
-                    var animation = new AnimationComponent(obj.Object, animations);
-                    obj.Object.AnimationComponent = animation;
-                    characters.Add(animation);
-                }
-
-                instance.Objects[name] = obj;
-            }
-
-            // Cutscene.SceneSetup runs the events at 0 s before the first frame.
-            instance.Update(0);
-            var next = 0;
-            while (next < Times.Length)
-            {
-                instance.Update(Frame);
-                foreach (var obj in instance.Objects.Values)
-                {
-                    obj.Update();
-                }
-
-                foreach (var animation in characters)
-                {
-                    animation.Update(Frame, null!);
-                }
-
-                for (; next < Times.Length && instance.CurrentTime >= Times[next] - 1e-6; next++)
-                {
-                    foreach (var name in Characters)
-                    {
-                        var obj = instance.Objects[name];
-                        poses[(Times[next], name)] = new Transform3D(obj.Translate, obj.Rotate);
-                    }
+                    var obj = thn[name];
+                    poses[(time, name)] = new Transform3D(obj.Translate, obj.Rotate);
                 }
             }
         }
