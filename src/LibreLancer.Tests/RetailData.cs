@@ -50,6 +50,9 @@ public class RetailData
     // Reads a file that a THN script includes, as GameItemDb.ThornReadCallback does.
     public byte[] ReadThornFile(string file) => VFS.ReadAllBytes("EXE/" + file);
 
+    // Reads a file in the DATA folder, for example a THN script.
+    public byte[] ReadDataFile(string path) => VFS.ReadAllBytes(ini.DataPath + path);
+
     // Makes the skeleton of a costume, as ThnScriptInstance does for a DEFORMABLE entity.
     public DfmSkeletonManager? LoadCostume(string nickname)
     {
@@ -83,12 +86,17 @@ public class RetailData
     public GameObject LoadModel(string path) =>
         new(resources.GetDrawable(ini.DataPath + path)!, resources, false, false);
 
-    // Loads one file of character animations, as GameDataManager.GetCharacterAnimations does.
-    public AnmFile LoadAnimations(string path)
+    // Loads files of character animations into one table, as GameDataManager.GetCharacterAnimations does.
+    public AnmFile LoadAnimations(params string[] paths)
     {
         var anm = new AnmFile();
-        using var stream = VFS.Open(ini.DataPath + path);
-        AnmFile.ParseToTable(anm.Scripts, anm.Buffer, new StringDeduplication(), stream, path);
+        var strings = new StringDeduplication();
+        foreach (var path in paths)
+        {
+            using var stream = VFS.Open(ini.DataPath + path);
+            AnmFile.ParseToTable(anm.Scripts, anm.Buffer, strings, stream, path);
+        }
+
         anm.Buffer.Commit();
         return anm;
     }

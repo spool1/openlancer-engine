@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using LibreLancer.Data.GameData;
 using LibreLancer.Render;
@@ -146,7 +147,9 @@ namespace LibreLancer.Thn
                 Events.Add(e);
             }
 
-            Events.Sort((x, y) => x.Time.CompareTo(y.Time));
+            // A stable sort: events at the same time keep the file order. Thus the newest of two motions that start
+            // at the same time is the second one in the file.
+            Events = Events.OrderBy(x => x.Time).ToList();
         }
 
         private ThnEvent GetEvent(ThornTable table, string source)

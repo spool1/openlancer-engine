@@ -12,6 +12,14 @@ namespace LibreLancer.Thn.Events
         public float StartTime;
         public float TimeScale;
         public int Flags;
+        // The time in seconds that the motion takes to blend in. Retail uses 0 when the event has no value.
+        public float TransitionTime;
+
+        // Retail event_flags: 2 loops the motion, and 128 makes it an overlay. An overlay keeps the motions under it
+        // and blends back to them when it ends. Retail uses 130 for a looping overlay. The engine does not play the
+        // flag 1 (backwards).
+        public bool Loop => (Flags & 2) != 0;
+        public bool Overlay => (Flags & 128) != 0;
 
         public StartMotionEvent()
         {
@@ -27,6 +35,7 @@ namespace LibreLancer.Thn.Events
             GetValue(props, "start_time", out StartTime);
             GetValue(props, "time_scale", out TimeScale, 1f);
             GetValue(props, "event_flags", out Flags);
+            GetValue(props, "trans_time", out TransitionTime);
         }
 
         public StartMotionEvent Clone(string target) => new()
@@ -39,7 +48,8 @@ namespace LibreLancer.Thn.Events
             Animation = Animation,
             StartTime = StartTime,
             TimeScale = TimeScale,
-            Flags = Flags
+            Flags = Flags,
+            TransitionTime = TransitionTime
         };
 
         public override void Run(ThnScriptInstance instance)
@@ -52,8 +62,8 @@ namespace LibreLancer.Thn.Events
 
             if (obj.Object is { AnimationComponent: not null }) // Check if object has Cmp animation
             {
-                bool loop = (Flags == 2);
-                obj.Object.AnimationComponent.StartAnimation(Animation, loop, StartTime, TimeScale, Duration);
+                obj.Object.AnimationComponent.StartAnimation(Animation, Loop, StartTime, TimeScale, Duration,
+                    transition: TransitionTime, overlay: Overlay);
             }
             else
             {

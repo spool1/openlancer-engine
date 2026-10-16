@@ -143,12 +143,14 @@ namespace LibreLancer.World.Components
         }
 
 
+        // Only a character uses transition and overlay.
         public void StartAnimation(Script script, bool loop = true, float start_time = 0, float time_scale = 1,
-            float duration = 0, bool reverse = false)
+            float duration = 0, bool reverse = false, float transition = 0, bool overlay = false)
         {
             if (Parent?.RenderComponent is CharacterRenderer characterRenderer)
             {
-                characterRenderer.Skeleton.StartScript(script, start_time, time_scale, duration, loop);
+                characterRenderer.Skeleton.StartScript(script, start_time, time_scale, duration, loop, transition,
+                    overlay);
                 return;
             }
 
@@ -183,11 +185,11 @@ namespace LibreLancer.World.Components
         }
 
         public void StartAnimation(string animationName, bool loop = true, float start_time = 0, float time_scale = 1,
-            float duration = 0, bool reverse = false)
+            float duration = 0, bool reverse = false, float transition = 0, bool overlay = false)
         {
             if (anm.Scripts.TryGetValue(animationName, out var script))
             {
-                StartAnimation(script, loop, start_time, time_scale, duration, reverse);
+                StartAnimation(script, loop, start_time, time_scale, duration, reverse, transition, overlay);
             }
             else
             {
