@@ -97,6 +97,35 @@ public class ThnSceneObject
         UpdateEngineObjects();
     }
 
+    // A screen overlay is an effect that an attachment holds at a fixed point in front of the lens of the camera.
+    // POSITION with ENTITY_RELATIVE puts the effect at the offset in the axes of the camera. The offset points
+    // forward: its forward part is larger than its side part and its up part. Retail uses this for the fades, the TV
+    // lines and the news logo, and makes these effects for a 4:3 view. An effect that follows a camera in another way
+    // is in the world, for example ceiling dust 2 m below the camera or snow at an offset in the scene axes.
+    // The cutscene calls this for each effect in each frame. Thus it does not allocate memory.
+    internal bool IsScreenOverlayOf(ThnSceneObject camera)
+    {
+        foreach (var t in Attachments)
+        {
+            if (t.Position && t.EntityRelative && !t.ParentChild && t.Parent is ThnObjectParent parent &&
+                parent.IsRootOf(camera) && -t.Offset.Z > MathF.Max(MathF.Abs(t.Offset.X), MathF.Abs(t.Offset.Y)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Gives the effect of this object to the camera as a screen overlay, or puts it in the world.
+    internal void UpdateScreenOverlay(ThnCamera camera)
+    {
+        if (Object?.RenderComponent is ParticleEffectRenderer fx)
+        {
+            fx.OverlayCamera = camera.Object != null && IsScreenOverlayOf(camera.Object) ? camera : null;
+        }
+    }
+
 
     void UpdateEngineObjects()
     {
@@ -209,6 +238,9 @@ public class ThnPathParent(ThnSceneObject Path)
 public class ThnObjectParent(ThnSceneObject obj, IRenderHardpoint? hardpoint, RigidModelPart? part)
     : ThnAttachParent
 {
+    // True when the parent is the object itself, not a hardpoint or a part of it.
+    internal bool IsRootOf(ThnSceneObject other) => obj == other && hardpoint == null && part == null;
+
     public override Transform3D GetTransform(bool pathLookAt)
     {
         if (part != null)

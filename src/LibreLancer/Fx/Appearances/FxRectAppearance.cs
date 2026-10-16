@@ -99,7 +99,7 @@ namespace LibreLancer.Fx
                     new Color4(c, a),
                     GetFrame((float)instance.GlobalTime, sparam, ref particle),
                     n,
-                    Rotate == null ? 0f : MathHelper.DegreesToRadians(Rotate.GetValue(sparam, time)),
+                    ParticleRotation(sparam, time),
                     FlipHorizontal, FlipVertical
                 );
 
@@ -114,7 +114,8 @@ namespace LibreLancer.Fx
                 this,
                 instance.Resources,
                 transform,
-                (instance.DrawIndex << 11) + nodeIdx
+                (instance.DrawIndex << 11) + nodeIdx,
+                instance.ScreenStretch
             );
         }
 	}

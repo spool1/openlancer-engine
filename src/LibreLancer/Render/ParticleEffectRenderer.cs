@@ -5,6 +5,7 @@
 using System;
 using System.Numerics;
 using LibreLancer.Fx;
+using LibreLancer.Thn;
 using LibreLancer.World;
 
 namespace LibreLancer.Render
@@ -18,6 +19,9 @@ namespace LibreLancer.Render
         public bool Finished = false;
         public int Index; // needed to fix fuses spawning multiple fx on top of each-other
         public Hardpoint? Attachment;
+        // A cutscene camera that holds this effect in front of its lens as a screen overlay, or null for an effect
+        // in the world. The cutscene sets it in each frame.
+        internal ThnCamera? OverlayCamera;
 
         private Matrix4x4 tr;
         private Vector3 pos;
@@ -44,6 +48,12 @@ namespace LibreLancer.Render
 
         // For tests.
         internal ParticleEffectInstance? Instance => fx;
+
+        // The horizontal stretch of the effect when the camera draws it. Only the camera of a screen overlay
+        // stretches the effect. Another view of the same effect, for example a free camera in an editor, shows the
+        // effect in the world.
+        internal float ScreenStretch(ICamera camera) =>
+            OverlayCamera != null && camera == OverlayCamera ? OverlayCamera.OverlayStretch : 1;
 
         public override bool PrepareRender(ICamera camera, NebulaRenderer? nr, SystemRenderer sys, bool forceCull)
         {
@@ -105,6 +115,7 @@ namespace LibreLancer.Render
 
             if(!fx.Culled)
             {
+                fx.ScreenStretch = ScreenStretch(camera);
                 fx.Draw(tr,SParam);
             }
         }

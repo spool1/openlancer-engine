@@ -57,6 +57,11 @@ namespace LibreLancer.Thn
             frameNo++;
         }
 
+        // Retail cutscenes are made for a 4:3 screen. On another screen, CalcCameraProps multiplies the tangent of the
+        // horizontal half-angle by this factor, and the vertical view stays as on 4:3 (FOVUtil.CalcFovx). A screen
+        // overlay is made for 4:3, so it stretches by the same factor to fill the width of the view.
+        internal float OverlayStretch => screenAspect / (4f / 3f);
+
         public bool FrustumCheck(BoundingSphere sphere) => frustum.Intersects(sphere);
         public bool FrustumCheck(BoundingBox box) => frustum.Intersects(box);
 

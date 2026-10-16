@@ -14,14 +14,15 @@ public enum ParticleDrawKind
 
 public class ParticleMaterial(StorageBuffer buffer) : RenderMaterial(null)
 {
-    public List<(Texture texture, ushort blendMode, ParticleDrawKind drawKind, int drawStart, int drawCount)> Parameters = [];
+    public List<(Texture texture, ushort blendMode, ParticleDrawKind drawKind, float screenStretch, int drawStart, int drawCount)> Parameters = [];
 
     public StorageBuffer Buffer = buffer;
 
 
-    public int AddParameters(Texture texture, ushort blendMode, ParticleDrawKind drawKind, int drawStart, int drawCount)
+    public int AddParameters(Texture texture, ushort blendMode, ParticleDrawKind drawKind, float screenStretch,
+        int drawStart, int drawCount)
     {
-        Parameters.Add((texture, blendMode, drawKind, drawStart, drawCount));
+        Parameters.Add((texture, blendMode, drawKind, screenStretch, drawStart, drawCount));
         return Parameters.Count - 1;
     }
 
@@ -32,6 +33,8 @@ public class ParticleMaterial(StorageBuffer buffer) : RenderMaterial(null)
         rstate.Samplers[0] = new SamplerState(rstate.PreferredFilterLevel, WrapMode.ClampToEdge, WrapMode.ClampToEdge);
         var dk = Parameters[userData].drawKind;
         shader.SetUniformBlock(3, ref dk);
+        var stretch = Parameters[userData].screenStretch;
+        shader.SetUniformBlock(4, ref stretch);
         rstate.BlendMode = Parameters[userData].blendMode;
         rstate.Shader = shader;
         Buffer.BindTo(9, Parameters[userData].drawStart,  Parameters[userData].drawCount);

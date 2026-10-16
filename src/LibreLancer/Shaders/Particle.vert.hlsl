@@ -25,6 +25,14 @@ cbuffer ParticleParameters : register(b3, UNIFORM_SPACE)
     int Type;
 };
 
+// The GL path flattens each block, and a flattened block has only one basic type. Thus the floats have their own block.
+cbuffer ParticleStretch : register(b4, UNIFORM_SPACE)
+{
+    // The horizontal stretch of the drawn quads about the center of the view. 1 for an effect in the world.
+    // A cutscene screen overlay is made for a 4:3 view, and it stretches to the width of a wider view.
+    float ScreenStretch;
+};
+
 // Technically an SSBO, but we use UBOs to emulate this for GL3.0
 StructuredBuffer<Particle> Particles : register(t9, TEXTURE_SPACE);
 
@@ -139,13 +147,27 @@ Output main(int vertexID: SV_VertexID)
     {
         float s, c;
         sincos(particle.rotate, s, c);
-        vUp = (c * right - s * up) * particle.halfSize.x;
-        vRight = (s * right + c * up) * particle.halfSize.y;
+        if (Type == 0)
+        {
+            // Basic: the texture is upright. U goes along the width (halfSize.x) and V goes down the height
+            // (halfSize.y). The corners are in the order of the motion-blur branch and of the uvs table.
+            float3 ax = (c * right - s * up) * particle.halfSize.x;
+            float3 ay = (s * right + c * up) * particle.halfSize.y;
+            positions[0] = p - ax - ay;
+            positions[1] = p + ax - ay;
+            positions[2] = p - ax + ay;
+            positions[3] = p + ax + ay;
+        }
+        else
+        {
+            vUp = (c * right - s * up) * particle.halfSize.x;
+            vRight = (s * right + c * up) * particle.halfSize.y;
 
-        positions[0] = p - vRight - vUp;
-        positions[1] = p + vRight - vUp,
-        positions[2] = p - vRight + vUp,
-        positions[3] = p + vRight + vUp;
+            positions[0] = p - vRight - vUp;
+            positions[1] = p + vRight - vUp,
+            positions[2] = p - vRight + vUp,
+            positions[3] = p + vRight + vUp;
+        }
     }
 
     float2 uvs[4] = {
@@ -157,6 +179,7 @@ Output main(int vertexID: SV_VertexID)
 
     Output output;
     output.position = mul(float4(positions[vertex], 1.0), ViewProjection);
+    output.position.x *= ScreenStretch;
     output.texCoord = uvs[vertex];
     output.color = color;
     return output;

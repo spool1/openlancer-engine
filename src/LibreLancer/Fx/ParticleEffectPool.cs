@@ -180,7 +180,8 @@ namespace LibreLancer.Fx
         }
 
 
-        public void DrawBuffer(ParticleDrawKind drawKind, FxBasicAppearance app, ResourceManager res, Matrix4x4 tr, int drawIndex)
+        public void DrawBuffer(ParticleDrawKind drawKind, FxBasicAppearance app, ResourceManager res, Matrix4x4 tr,
+            int drawIndex, float screenStretch)
         {
             if (lastDrawCommand == nextParticle)
                 return;
@@ -198,7 +199,7 @@ namespace LibreLancer.Fx
                     cmd.WorldBuffer.Identity, Lighting.Empty,
                     vbo, 1.0f, PrimitiveTypes.TriangleList, -1, 0, 256 * 2,
                     SortLayers.OBJECT, z, null, drawIndex,
-                    particleMaterial.AddParameters(texture, app.BlendInfo, drawKind, start, 256)
+                    particleMaterial.AddParameters(texture, app.BlendInfo, drawKind, screenStretch, start, 256)
                 );
                 count -= 256;
                 start += 256;
@@ -208,7 +209,7 @@ namespace LibreLancer.Fx
                 cmd.WorldBuffer.Identity, Lighting.Empty,
                 vbo, 1.0f, PrimitiveTypes.TriangleList, -1, 0, count * 2,
                 SortLayers.OBJECT, z, null, drawIndex,
-                particleMaterial.AddParameters(texture, app.BlendInfo, drawKind, start, count)
+                particleMaterial.AddParameters(texture, app.BlendInfo, drawKind, screenStretch, start, count)
             );
             if (nextParticle != MaxParticles)
             {

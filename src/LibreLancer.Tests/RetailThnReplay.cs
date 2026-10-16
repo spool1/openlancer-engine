@@ -90,7 +90,19 @@ internal sealed class RetailThnReplay
             {
                 Name = name, Translate = spawns[name].Position, Rotate = spawns[name].Orientation
             };
-            if (ThnTypes.Convert<EntityTypes>(entity["type"]) == EntityTypes.Deformable)
+            if (ThnTypes.Convert<EntityTypes>(entity["type"]) == EntityTypes.Camera)
+            {
+                // The camera props, as ThnScriptInstance makes them.
+                var props = (ThornTable)entity["cameraprops"];
+                obj.Camera = new ThnCameraProps()
+                {
+                    FovH = (float)props["fovh"],
+                    AspectRatio = (float)props["hvaspect"],
+                    Znear = (float)props["nearplane"],
+                    Zfar = (float)props["farplane"]
+                };
+            }
+            else if (ThnTypes.Convert<EntityTypes>(entity["type"]) == EntityTypes.Deformable)
             {
                 var skeleton = data.LoadCostume((string)entity["template_name"]);
                 Assert.NotNull(skeleton);

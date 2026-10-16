@@ -38,6 +38,9 @@ namespace LibreLancer.Fx
         }
 
         public int DrawIndex; // needed to fix multiple fx spawned by fuse
+        // The horizontal stretch of the drawn effect about the center of the view. It is 1 for an effect in the
+        // world. ParticleEffectRenderer sets it for a cutscene screen overlay.
+        internal float ScreenStretch = 1;
 
         public ParticleEffectPool Pool = null!;
         public ResourceManager Resources = null!;

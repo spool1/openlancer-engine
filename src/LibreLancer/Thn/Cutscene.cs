@@ -423,6 +423,8 @@ public class Cutscene : IDisposable
         // Apply the transforms after the events of this frame, so that actors move on the same frame as a camera cut.
         foreach (var obj in sceneObjects.Values) obj.Update();
         camera.Update();
+        // The camera of this frame stretches its screen overlays to the width of the view.
+        foreach (var obj in sceneObjects.Values) obj.UpdateScreenOverlay(camera);
         if (Renderer != null)
         {
             World.Update(delta);

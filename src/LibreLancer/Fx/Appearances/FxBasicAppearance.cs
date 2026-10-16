@@ -119,18 +119,33 @@ namespace LibreLancer.Fx
                 instance.Pool?.AddParticle(
                     TextureHandler,
                     p,
-                    new Vector2(Size?.GetValue(sparam, time) ?? 1.0f) * 2,
+                    ParticleSize(sparam, time),
                     new Color4(c, a),
                     GetFrame((float) instance.GlobalTime, sparam, ref particle),
                     v, //For motion blur pass not normalized velocity as normal (needed)
-                    Rotate == null ? 0f : MathHelper.DegreesToRadians(Rotate.GetValue(sparam, time)),
+                    ParticleRotation(sparam, time),
                     FlipHorizontal, FlipVertical,
                     MotionBlur
                 );
             }
 
-            instance.Pool?.DrawBuffer(ParticleDrawKind.Basic, this, instance.Resources!, transform, (instance.DrawIndex << 11) + nodeIdx);
+            instance.Pool?.DrawBuffer(ParticleDrawKind.Basic, this, instance.Resources!, transform,
+                (instance.DrawIndex << 11) + nodeIdx, instance.ScreenStretch);
         }
+
+        // The width and the height of a particle. Size is the half-height, and HToVAspect is the ratio of the width
+        // to the height. The retail TV lines need this width to cover a 4:3 view.
+        internal Vector2 ParticleSize(float sparam, float time)
+        {
+            var size = Size?.GetValue(sparam, time) ?? 1f;
+            var aspect = HToVAspect?.GetValue(sparam, time) ?? 1f;
+            return new Vector2(size * aspect, size) * 2;
+        }
+
+        // The angle of a particle on the screen, in radians. Retail gives the BasicApp_Rotate value to the sine and the
+        // cosine without a conversion. For example, the retail base glows have an angle of about pi/2 and a small
+        // aspect, so they are horizontal streaks.
+        internal float ParticleRotation(float sparam, float time) => Rotate?.GetValue(sparam, time) ?? 0f;
 
         public readonly ParticleTexture TextureHandler = new();
 
