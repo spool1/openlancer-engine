@@ -111,4 +111,16 @@ public class IdsFormattingTests
         Assert.Equal("Hello", result);
     }
 
+    [Theory]
+    [InlineData(false, "Enter Formation with the USV Brandt")]
+    [InlineData(true, "ENTER FORMATION WITH THE USV BRANDT")]
+    public void WidgetStridTextIsFormatted(bool allCaps, string expected)
+    {
+        var ic = EmptyInfocards();
+        ic.SetStringResource(21850, "Enter Formation with the USV Brandt%M");
+        var context = new UiContext(new UiData() { Infocards = ic });
+        var text = new InfoTextAccessor() { Strid = 21850, AllCaps = allCaps };
+        Assert.Equal(expected, text.GetText(context));
+    }
+
 }

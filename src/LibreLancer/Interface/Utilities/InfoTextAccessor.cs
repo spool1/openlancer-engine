@@ -63,6 +63,9 @@ namespace LibreLancer.Interface
 
                 if (!string.IsNullOrEmpty(_idsText))
                 {
+                    // Mission objective strings end in the %M code. A widget has no format arguments, so the
+                    // formatter removes %M and any other code.
+                    _idsText = IdsFormatting.Format(_idsText, context.Data.Infocards, []);
                     if (_allCaps) _idsText = _idsText.ToUpper();
                     return _idsText;
                 }
