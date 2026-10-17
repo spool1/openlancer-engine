@@ -46,7 +46,7 @@
     <!-- Invokes LLShaderCompiler to find the file dependency tree for all shaders
          so we don't have to recompile the shaders on every build -->
     <Target Name="ShaderDependencies" Condition="@(Shader)!='' And '$(DisableShaders)' != 'True'" BeforeTargets="ShaderCompiler">
-        <Exec Command="$(LLShaderCompiler) $(DXC) --list-deps --rsp $(IntermediateOutputPath)LLAllShaders.rsp.txt"
+        <Exec Command="$(LLShaderCompiler) $(DXC) --list-deps --rsp &quot;$(IntermediateOutputPath)LLAllShaders.rsp.txt&quot;"
             ConsoleToMsBuild="true" StandardOutputImportance="Low">
             <Output TaskParameter="ConsoleOutput" ItemName="ShaderInputs"/>
         </Exec>
@@ -61,7 +61,7 @@
             BeforeTargets="BeforeBuild;BeforeRebuild"
             Outputs="@(ShaderOutputs)" >
         <MakeDir Directories="$(IntermediateOutputPath)%(Shader.RelativeDir)" Condition="!Exists('$(IntermediateOutputPath)%(Shader.RelativeDir)')" />
-        <Exec Command="$(LLShaderCompiler) $(DXC) --rsp $(IntermediateOutputPath)LLCompileShaders.rsp.txt"/>
+        <Exec Command="$(LLShaderCompiler) $(DXC) --rsp &quot;$(IntermediateOutputPath)LLCompileShaders.rsp.txt&quot;"/>
         <ItemGroup>
             <EmbeddedResource Include="%(ShaderOutputs.Identity)">
                 <LogicalName>%(ShaderOutputs.Filename).bin</LogicalName>
