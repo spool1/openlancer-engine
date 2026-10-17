@@ -50,6 +50,10 @@ public class SoundInstance
 
     public int Priority = 0;
     public SoundCategory Category { get; private set; }
+
+    /// <summary>The length of the sound, in seconds. A time offset of <see cref="Play"/> past the end plays the sound
+    /// from its start, so a caller that starts a sound in its middle reads it first.</summary>
+    public double Length => Data.Duration;
     public Action? OnStop;
 
     internal SoundInstance(AudioManager manager, SoundData data, SoundCategory category)
