@@ -290,7 +290,8 @@ namespace LibreLancer.Render
 
 		public void Draw(CommandBuffer buffer)
 		{
-			var inside = Nebula.Zone!.ContainsPoint(sysr.Camera.Position);
+			// Without the fog (SystemRenderer.DrawFog), the nebula draws as seen from outside.
+			var inside = sysr.DrawFog && Nebula.Zone!.ContainsPoint(sysr.Camera.Position);
             var z = RenderHelpers.GetZ(Matrix4x4.Identity, sysr.Camera.Position, Nebula.Zone!.Position);
 			if (!inside || !FogTransitioned())
 				RenderFill(buffer, inside, z);
@@ -393,7 +394,8 @@ namespace LibreLancer.Render
             var world = Nebula.Zone!.RotationMatrix * Matrix4x4.CreateTranslation(Nebula.Zone.Position);
             var wh = buffer.WorldBuffer.SubmitMatrix(ref world);
             /* Actually Render */
-			var factor = FogTransition(Nebula.Zone, sysr.Camera.Position);
+			// The puffs take the fog color as the camera goes deeper. Seen from outside, they keep their own color.
+			var factor = inside ? FogTransition(Nebula.Zone, sysr.Camera.Position) : 0f;
             var idx = puffsIdx;
             for (var i = 0; i < Exterior.Count; i++)
 			{

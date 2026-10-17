@@ -41,6 +41,9 @@ namespace LibreLancer.Render
         // Editor Options
         public bool DrawNebulae = true;
         public bool DrawStarsphere = true;
+        // The fog of the nebula that holds the camera. When false, no nebula holds the camera: the view has no fog,
+        // and each nebula draws as seen from outside.
+        public bool DrawFog = true;
 
         // Global Renderer Options
         public bool AllowPerPixelLighting = true;
@@ -232,7 +235,7 @@ namespace LibreLancer.Render
 
         private NebulaRenderer? CheckNebulae()
         {
-            if (!DrawNebulae)
+            if (!DrawNebulae || !DrawFog)
             {
                 return null;
             }
