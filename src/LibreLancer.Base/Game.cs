@@ -217,8 +217,14 @@ public class Game : IUIThread, IGLWindow
         return null;
     }
 
+    // The user asked to close the window: the close button, Alt+F4, the taskbar or another quit request. Return false
+    // to keep the window open, for example to ask about unsaved work first. Exit() does not call it.
+    protected virtual bool OnCloseRequested() => true;
+
     internal bool OnWillClose()
     {
+        if (!OnCloseRequested())
+            return false;
         WillClose?.Invoke();
         return true;
     }
