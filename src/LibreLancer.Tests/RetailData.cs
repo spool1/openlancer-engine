@@ -12,11 +12,11 @@ using Xunit;
 
 namespace LibreLancer.Tests;
 
-// The retail Freelancer data. OPENLANCER_BASE gives the folder that contains DATA and EXE.
-// A test that uses this data is skipped when the folder does not exist.
+// The retail Freelancer data. OPENLANCER_BASE gives the folder that contains DATA and EXE. Without it, the tests use
+// the nearest GameData\base folder above the test binaries. In the OpenLancer layout, that folder is next to the
+// OpenLancer repo. A test that uses this data is skipped when no folder is found.
 public class RetailData
 {
-    private const string DefaultFolder = @"D:\Projects\Freelancer Decompiled\GameData\base";
 
     public readonly string Folder;
     public readonly FileSystem VFS;
@@ -40,11 +40,26 @@ public class RetailData
         var folder = Environment.GetEnvironmentVariable("OPENLANCER_BASE");
         if (string.IsNullOrEmpty(folder))
         {
-            folder = DefaultFolder;
+            folder = FindNearestBase();
         }
 
-        Assert.SkipUnless(Directory.Exists(folder), $"No retail data in {folder}. Set OPENLANCER_BASE.");
-        return new RetailData(folder);
+        Assert.SkipUnless(folder != null && Directory.Exists(folder),
+            "No retail data. Set OPENLANCER_BASE, or put GameData\\base in a folder above the test binaries.");
+        return new RetailData(folder!);
+    }
+
+    private static string? FindNearestBase()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "GameData", "base");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     // Reads a file that a THN script includes, as GameItemDb.ThornReadCallback does.
