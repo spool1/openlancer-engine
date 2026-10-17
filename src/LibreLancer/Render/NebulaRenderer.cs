@@ -73,16 +73,46 @@ namespace LibreLancer.Render
         {
             if (Math.Abs(Nebula.Zone!.EdgeFraction) < 0.000000001) // Instant transition
                 return 1f;
-            return CalculateTransition(Nebula.Zone);
+            return FogTransition(Nebula.Zone, sysr.Camera.Position);
         }
 
-        private float CalculateTransition(Zone zone)
+        /// <summary>
+        /// The fog opacity at a position: 0 at the edge of the zone or outside it, and 1 at the depth
+        /// <c>edge_fraction</c> and deeper. <see cref="Zone.ScaledDistance"/> is 0 at the center and 1 at the edge.
+        /// </summary>
+        public static float FogTransition(Zone zone, Vector3 position)
 		{
-			// Find transitional value based on how far into the zone we are
-			// ScaledDistance is from 0 at center to 1 at edge. Reverse this.
-			var sd = 1 - MathHelper.Clamp(zone.ScaledDistance(sysr.Camera.Position), 0f, 1f);
+			var sd = 1 - MathHelper.Clamp(zone.ScaledDistance(position), 0f, 1f);
 			return MathHelper.Clamp(sd / zone.EdgeFraction, 0, 1);
 		}
+
+        /// <summary>
+        /// The semi-axes of the volume that a nebula draws for a zone: the radius on each axis for a sphere, and the
+        /// size for an ellipsoid. <see cref="Zone.ContainsPoint"/>, the fog and the asteroid band read the size in the
+        /// same way. Null for a box, a cylinder or a ring, which draw no exterior and no shell.
+        /// </summary>
+        public static Vector3? ZoneRadii(Zone zone) => zone.Shape switch
+        {
+            ShapeKind.Sphere => new Vector3(zone.Size.X),
+            ShapeKind.Ellipsoid => zone.Size,
+            _ => null
+        };
+
+        /// <summary>
+        /// The semi-axes of the shell of an exclusion zone: the zone radii multiplied by <c>shell_scalar</c>. The
+        /// retail scalars are 1, 1.1 and 1.2, so the shell is the wall of the hole. Null when the zone has no radii.
+        /// </summary>
+        public static Vector3? ShellRadii(NebulaExclusionZone ex) => ZoneRadii(ex.Zone!) * ex.ShellScalar;
+
+        /// <summary>
+        /// The position of an exterior puff relative to the zone center, on the surface of the ellipsoid with the
+        /// semi-axes <paramref name="radii"/>, at the height <c>y - radii.Y / 2</c> above the zone center.
+        /// </summary>
+        internal static Vector3 PuffPosition(Vector3 radii, float y, float angle)
+        {
+            var pos = PrimitiveMath.GetPointOnRadius(radii, y, angle);
+            return new Vector3(pos.X, pos.Y - (radii.Y / 2), pos.Z);
+        }
 
 		public void RenderFogTransition(RenderContext ren)
 		{
@@ -214,7 +244,7 @@ namespace LibreLancer.Render
 			var ex = GetExclusion(sysr.Camera.Position);
 			if (ex != null)
 			{
-				var factor = CalculateTransition(ex.Zone!);
+				var factor = FogTransition(ex.Zone!, sysr.Camera.Position);
 				FogRange.Y = MathHelper.Lerp(FogRange.Y, ex.FogFar, factor);
 			}
 
@@ -261,7 +291,7 @@ namespace LibreLancer.Render
 		public void Draw(CommandBuffer buffer)
 		{
 			var inside = Nebula.Zone!.ContainsPoint(sysr.Camera.Position);
-            var z = RenderHelpers.GetZ(Matrix4x4.Identity, sysr.Camera.Position, Nebula.Zone.Position);
+            var z = RenderHelpers.GetZ(Matrix4x4.Identity, sysr.Camera.Position, Nebula.Zone!.Position);
 			if (!inside || !FogTransitioned())
 				RenderFill(buffer, inside, z);
 			DrawPuffRing(inside, buffer, z);
@@ -290,19 +320,13 @@ namespace LibreLancer.Render
                 shellModels[ex.Shell.ModelFile!] = shellModel;
             }
 
-			Vector3 sz = Vector3.Zero;
-			// Only render ellipsoid and sphere exteriors
-			if (Nebula.Zone!.Shape == ShapeKind.Sphere)
-				sz = Nebula.Zone.Size / 2; // we want radius instead of diameter
-			else if (Nebula.Zone.Shape == ShapeKind.Ellipsoid)
-				sz = new Vector3(Nebula.Zone.Size.X);
-			else
+			// The shell takes the size of the exclusion zone, not the size of the nebula zone.
+			if (ShellRadii(ex) is not { } radii)
 				return;
-			sz *= (1 / shellModel.GetRadius());
-			var world = Matrix4x4.CreateScale(ex.ShellScalar * sz) * ex.Zone!.RotationMatrix * Matrix4x4.CreateTranslation(ex.Zone.Position);
+			var world = Matrix4x4.CreateScale(radii / shellModel.GetRadius()) * ex.Zone!.RotationMatrix * Matrix4x4.CreateTranslation(ex.Zone.Position);
 			// var shell = (ModelFile)ex.Shell;
 			// Calculate Alpha
-			var alpha = ex.ShellMaxAlpha * CalculateTransition(ex.Zone);
+			var alpha = ex.ShellMaxAlpha * FogTransition(ex.Zone, sysr.Camera.Position);
 			// Set all render materials. We don't want LOD for this Mesh.
             foreach (var pt in shellModel.AllParts)
             {
@@ -355,16 +379,11 @@ namespace LibreLancer.Render
 		{
             /* Skip rendering puff rings */
             if(!inside) {
-                Vector3 sz;
-                if (Nebula.Zone!.Shape == ShapeKind.Ellipsoid)
-                    sz = Nebula.Zone.Size / 2; // we want radius instead of diameter
-                else if (Nebula.Zone.Shape == ShapeKind.Sphere)
-                    sz = new Vector3(Nebula.Zone.Size.X);
-                else
+                if (ZoneRadii(Nebula.Zone!) is not { } sz)
                     return;
                 var bitRadius = Nebula.ExteriorBitRadius * (1 + Nebula.ExteriorBitRandomVariation);
                 var szR = Math.Max(sz.X, Math.Max(sz.Y, sz.Z));
-                var sph = new BoundingSphere(Nebula.Zone.Position, (szR + bitRadius) * 1.2f);
+                var sph = new BoundingSphere(Nebula.Zone!.Position, (szR + bitRadius) * 1.2f);
                 if (!sysr.Camera.FrustumCheck(sph))
                     return;
             }
@@ -374,8 +393,7 @@ namespace LibreLancer.Render
             var world = Nebula.Zone!.RotationMatrix * Matrix4x4.CreateTranslation(Nebula.Zone.Position);
             var wh = buffer.WorldBuffer.SubmitMatrix(ref world);
             /* Actually Render */
-			var sd = 1 - MathHelper.Clamp(Nebula.Zone.ScaledDistance(sysr.Camera.Position), 0f, 1f);
-			var factor = MathHelper.Clamp(sd / Nebula.Zone.EdgeFraction, 0, 1);
+			var factor = FogTransition(Nebula.Zone, sysr.Camera.Position);
             var idx = puffsIdx;
             for (var i = 0; i < Exterior.Count; i++)
 			{
@@ -402,19 +420,9 @@ namespace LibreLancer.Render
 
         private void GeneratePuffRing(float ypct, Random rn, List<VertexBillboardColor2> verts)
 		{
-			Vector3 sz;
-            switch (Nebula.Zone?.Shape)
-            {
-                // Only render ellipsoid and sphere exteriors
-                case ShapeKind.Ellipsoid:
-                    sz = Nebula.Zone.Size / 2; // we want radius instead of diameter
-                    break;
-                case ShapeKind.Sphere:
-                    sz = new Vector3(Nebula.Zone.Size.X);
-                    break;
-                default:
-                    return;
-            }
+            // Only render ellipsoid and sphere exteriors
+            if (ZoneRadii(Nebula.Zone!) is not { } sz)
+                return;
 
 			var yval = ypct * sz.Y;
 			var puffcount = rn.Next(Nebula.ExteriorMinBits, Nebula.ExteriorMaxBits + 1);
@@ -426,8 +434,7 @@ namespace LibreLancer.Render
 					yval - (sz.Y * Nebula.ExteriorMoveBitPercent),
 					yval + (sz.Y * Nebula.ExteriorMoveBitPercent)
 				);
-				var pos = PrimitiveMath.GetPointOnRadius(sz, y, (float)currentAngle);
-				var puffPos = new Vector3(pos.X, pos.Y - (sz.Y / 2), pos.Z);
+				var puffPos = PuffPosition(sz, y, (float)currentAngle);
 				var radius = rn.NextFloat(
 					Nebula.ExteriorBitRadius * (1 - Nebula.ExteriorBitRandomVariation),
 					Nebula.ExteriorBitRadius * (1 + Nebula.ExteriorBitRandomVariation)
@@ -537,15 +544,11 @@ namespace LibreLancer.Render
         private void RenderFill(CommandBuffer buffer, bool inside, float z)
 		{
 			if (Nebula.ExteriorFill == null) return;
-			Vector3 sz = Vector3.Zero;
-			// Only render ellipsoid and sphere exteriors
-			if (Nebula.Zone!.Shape == ShapeKind.Ellipsoid)
-				sz = Nebula.Zone.Size / 2; // we want radius instead of diameter
-			else if (Nebula.Zone.Shape == ShapeKind.Sphere)
-				sz =  new Vector3(Nebula.Zone.Size.X);
-			else
+			// Only render ellipsoid and sphere exteriors. The fill quads go from -1 to 1 on each axis
+			// (QuadBuffer.NebulaFill), so the scale is the radii.
+			if (ZoneRadii(Nebula.Zone!) is not { } sz)
 				return;
-			var p = Nebula.Zone.Position;
+			var p = Nebula.Zone!.Position;
             var sph = new BoundingSphere(p, Math.Max(sz.X, Math.Max(sz.Y, sz.Z)) * 1.2f);
             if (!sysr.Camera.FrustumCheck(sph))
                 return;

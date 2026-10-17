@@ -14,7 +14,7 @@ namespace LibreLancer.Data.GameData.World;
 // Shape Sizes
 // Sphere: X = radius
 // Box: XYZ = size
-// Ellipsoid: XYZ = size
+// Ellipsoid: XYZ = semi-axes (the radius on each axis, as ContainsPoint reads them)
 // Cylinder: X = radius, Y = height
 // Ring: X = outer radius, Y = height, Z = inner radius
 public class Zone : NicknameItem
