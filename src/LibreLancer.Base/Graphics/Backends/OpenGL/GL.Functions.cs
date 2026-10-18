@@ -115,6 +115,9 @@ internal static unsafe partial class GL
             DebugMessageControl(GL_DEBUG_SOURCE_OTHER, GL_DONT_CARE, GL_DONT_CARE, 0, IntPtr.Zero, false);
             DebugMessageControl(GL_DONT_CARE, GL_DEBUG_TYPE_PERFORMANCE, GL_DONT_CARE, 0, IntPtr.Zero, false);
             DebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_LOW, 0, IntPtr.Zero, false);
+            // Notifications are information only. The NVIDIA driver sends one for each new buffer store and each
+            // buffer map ("Buffer detailed info"), several times in each frame, and a Debug build logged each one.
+            DebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, IntPtr.Zero, false);
             _glDebugMessageCallback(Marshal.GetFunctionPointerForDelegate(DebugCallback), IntPtr.Zero);
         }
 #if DEBUG

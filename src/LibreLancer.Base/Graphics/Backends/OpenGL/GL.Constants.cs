@@ -12,6 +12,7 @@ internal static partial class GL
     public const int GL_DEBUG_SOURCE_OTHER = 0x824B;
     public const int GL_DONT_CARE = 0x1100;
     public const int GL_DEBUG_SEVERITY_LOW = 0x9148;
+    public const int GL_DEBUG_SEVERITY_NOTIFICATION = 0x826B;
     public const int GL_DEBUG_TYPE_PERFORMANCE = 0x8250;
     public const int GL_DEBUG_TYPE_ERROR = 0x824C;
     //clear buffers
