@@ -53,6 +53,14 @@ public static class FLLog
 
     private static object spewLock = new object();
     private static StreamWriter? spewFile;
+    private static string? spewPath;
+
+    /// <summary>
+    /// The size in bytes at which the log file starts again. A copy of the full file then replaces the file with
+    /// ".old" before its extension (see <see cref="OldSpewPath"/>). So the log of one run takes at most two times this
+    /// size, also when a driver or a loop writes a line in each frame.
+    /// </summary>
+    public static long SpewFileLimit = 32L * 1024 * 1024;
 
     private struct NonblockingWrite
     {
@@ -95,7 +103,12 @@ public static class FLLog
                         Console.WriteLine(q.Value);
                     lock (spewLock)
                     {
-                        spewFile?.WriteLine(q.Value);
+                        if (spewFile != null)
+                        {
+                            spewFile.WriteLine(q.Value);
+                            if (spewFile.BaseStream.Position >= SpewFileLimit)
+                                RollSpewFile();
+                        }
                     }
                 }
             })
@@ -116,14 +129,78 @@ public static class FLLog
         {
             try
             {
+                spewFile?.Dispose();
                 spewFile = new StreamWriter(CreateWriteLocked(filename));
                 spewFile.AutoFlush = true;
+                spewPath = filename;
                 return true;
             }
             catch (Exception)
             {
                 spewFile = null;
+                spewPath = null;
                 return false;
+            }
+        }
+    }
+
+    /// <summary>Stops the copy of the log to its file, and closes the file. Lines that the log thread did not write yet
+    /// go only to the console.</summary>
+    public static void CloseSpewFile()
+    {
+        lock (spewLock)
+        {
+            spewFile?.Dispose();
+            spewFile = null;
+            spewPath = null;
+        }
+    }
+
+    /// <summary>The file that holds the older lines of a log file: ".old" before its extension, for example
+    /// <c>lancer.log.old.txt</c> for <c>lancer.log.txt</c>.</summary>
+    public static string OldSpewPath(string filename) =>
+        Path.Combine(Path.GetDirectoryName(filename) ?? "",
+            Path.GetFileNameWithoutExtension(filename) + ".old" + Path.GetExtension(filename));
+
+    /// <summary>
+    /// Copies the full log file to its old file, and starts the log file again. The log file stays open and keeps its
+    /// name, so a program that shows the log can keep it open. A rename cannot do this: Windows refuses to replace a
+    /// file that another program has open. The caller holds <see cref="spewLock"/>.
+    /// </summary>
+    private static void RollSpewFile()
+    {
+        var file = spewFile!;
+        var old = OldSpewPath(spewPath!);
+        string note;
+        try
+        {
+            file.Flush();
+            using (var source = new FileStream(spewPath!, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var target = new FileStream(old, FileMode.Create, FileAccess.Write, FileShare.Read))
+                source.CopyTo(target);
+            note = $"The older lines are in {old}.";
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            note = $"The older lines are lost, because the log could not copy them to {old}: {e.Message}";
+        }
+        try
+        {
+            file.BaseStream.SetLength(0);
+            file.WriteLine(string.Format("[{0}: {1:HH:mm:ss}] Log: The log file reached {2} bytes. {3}",
+                LogSeverity.Info, DateTime.Now, SpewFileLimit, note));
+        }
+        catch (IOException)
+        {
+            // The console keeps the lines.
+            spewFile = null;
+            try
+            {
+                file.Dispose();
+            }
+            catch (IOException)
+            {
+                // The file is lost already.
             }
         }
     }
