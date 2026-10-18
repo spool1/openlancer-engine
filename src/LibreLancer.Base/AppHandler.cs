@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using LibreLancer.Dialogs;
@@ -13,7 +14,16 @@ public static class AppHandler
     [DllImport("kernel32.dll")]
     private static extern bool SetDllDirectory(string directory);
 
-    public const string ProjectName = "Librelancer";
+    /// <summary>
+    /// The name of the product. The crash and error windows show it, and the folders of the logs and of the game saves
+    /// use it. <see cref="Run(string, Action, Action?)"/> sets it. A program that calls
+    /// <see cref="Run(Action, Action?)"/> keeps "Librelancer".
+    /// </summary>
+    public static string ProjectName { get; private set; } = "Librelancer";
+
+    /// <summary>The folder of the log files of a product, for example <c>%LOCALAPPDATA%\Librelancer\logs</c> on
+    /// Windows.</summary>
+    public static string LogFolder(string projectName) => Path.Combine(LogsFolder(), projectName, "logs");
 
     private static void LogPlatform()
     {
@@ -76,25 +86,39 @@ public static class AppHandler
         }
     }
 
-    public static void Run(Action action, Action? onCrash = null)
+    // NoInlining keeps the program assembly as the calling assembly. It names the log file and finds the natives.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void Run(Action action, Action? onCrash = null) =>
+        RunProgram(ProjectName, Assembly.GetCallingAssembly(), action, onCrash);
+
+    /// <summary>
+    /// Runs a program with a product name of its own, for example a program that is not Librelancer. The name goes into
+    /// <see cref="ProjectName"/> before the program starts.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static void Run(string projectName, Action action, Action? onCrash = null) =>
+        RunProgram(projectName, Assembly.GetCallingAssembly(), action, onCrash);
+
+    private static void RunProgram(string projectName, Assembly program, Action action, Action? onCrash)
     {
+        ProjectName = projectName;
         var errorMessage = $"{ProjectName} has crashed. See the log for more information.";
 
         if (Platform.RunningOS == OS.Windows)
         {
-            var binDir = Path.GetDirectoryName(Assembly.GetCallingAssembly().Location) ?? "";
+            var binDir = Path.GetDirectoryName(program.Location) ?? "";
             var fullPath = Path.Combine(binDir, IntPtr.Size == 8 ? "x64" : "x86");
             SetDllDirectory(fullPath);
         }
 
         //Setup Spew
-        var spewFolder = Path.Combine(LogsFolder(), ProjectName, "logs");
+        var spewFolder = LogFolder(ProjectName);
         if (!Directory.Exists(spewFolder))
         {
             Directory.CreateDirectory(spewFolder);
         }
 
-        var spewBase = Assembly.GetCallingAssembly().GetName().Name + ".log";
+        var spewBase = program.GetName().Name + ".log";
         var spewSuffix = ".txt";
 
         string? spewPath = null;
@@ -194,7 +218,7 @@ public static class AppHandler
         if (addVersion)
         {
             builder.AppendLine()
-                .AppendLine($"Librelancer Version: {Platform.GetInformationalVersion<Platforms.IPlatform>()}");
+                .AppendLine($"{ProjectName} Version: {Platform.GetInformationalVersion<Platforms.IPlatform>()}");
         }
 
         return builder;

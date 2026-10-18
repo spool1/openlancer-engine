@@ -390,7 +390,7 @@ internal class SDL3Game : IGame
         //Window sizing
         if (sdlWin == IntPtr.Zero)
         {
-            CrashWindow.Run("Librelancer", "Failed to create SDL window",
+            CrashWindow.Run(AppHandler.ProjectName, "Failed to create SDL window",
                 "SDL Error: " + (SDL3.SDL_GetError() ?? ""));
             return;
         }
@@ -405,7 +405,7 @@ internal class SDL3Game : IGame
         IRenderContext? renderBackend = GLRenderContext.Create(sdlWin);
         if (renderBackend == null)
         {
-            CrashWindow.Run("Librelancer", "Failed to create OpenGL context",
+            CrashWindow.Run(AppHandler.ProjectName, "Failed to create OpenGL context",
                 "Your driver or gpu does not support at least OpenGL 3.2 or OpenGL ES 3.1\n" +
                 SDL3.SDL_GetError() ?? "");
             return;

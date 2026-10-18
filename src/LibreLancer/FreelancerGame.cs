@@ -155,7 +155,7 @@ namespace LibreLancer
 
         public string GetSaveFolder()
         {
-            var dir = GetSaveDirectory("Librelancer");
+            var dir = GetSaveDirectory(AppHandler.ProjectName);
             try
             {
                 Directory.CreateDirectory(dir);

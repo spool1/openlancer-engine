@@ -365,7 +365,7 @@ internal class SDL2Game : IGame
         //Window sizing
         if (sdlWin == IntPtr.Zero)
         {
-            CrashWindow.Run("Librelancer", "Failed to create SDL window",
+            CrashWindow.Run(AppHandler.ProjectName, "Failed to create SDL window",
                 "SDL Error: " + (SDL2.SDL_GetError() ?? ""));
             return;
         }
@@ -382,7 +382,7 @@ internal class SDL2Game : IGame
 
         if (renderBackend == null)
         {
-            CrashWindow.Run("Librelancer", "Failed to create OpenGL context",
+            CrashWindow.Run(AppHandler.ProjectName, "Failed to create OpenGL context",
                 "Your driver or gpu does not support at least OpenGL 3.2 or OpenGL ES 3.1\n" + SDL2.SDL_GetError() ?? "");
             return;
         }
@@ -414,7 +414,7 @@ internal class SDL2Game : IGame
         if (loop.Splash && (splashTexture = loop.GetSplashInternal()) != null)
         {
             var win2 = SDL2.SDL_CreateWindow(
-                "Librelancer",
+                AppHandler.ProjectName,
                 SDL2.SDL_WINDOWPOS_CENTERED,
                 SDL2.SDL_WINDOWPOS_CENTERED,
                 750, 250, SDL2.SDL_WindowFlags.SDL_WINDOW_OPENGL |
