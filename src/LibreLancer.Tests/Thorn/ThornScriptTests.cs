@@ -25,7 +25,8 @@ public class ThornScriptTests
             throw new Exception($"Output file missing {output}");
         }
 
-        var expected = File.ReadAllText(output).Trim();
+        // A Windows checkout can give the expected file CRLF line ends, and the scripts write LF. Compare the text only.
+        var expected = File.ReadAllText(output).ReplaceLineEndings("\n").Trim();
         var script = File.ReadAllText(test);
 
         var builder = new StringBuilder();
@@ -35,6 +36,6 @@ public class ThornScriptTests
         runtime.OnStdout += e => builder.Append(e);
         runtime.DoString(script, test);
 
-        Assert.Equal(expected, builder.ToString().Trim());
+        Assert.Equal(expected, builder.ToString().ReplaceLineEndings("\n").Trim());
     }
 }
