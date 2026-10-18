@@ -69,13 +69,15 @@ internal class SDL3Game : IGame
     public float DpiScale { get; set; } = 1;
     public int Width { get; private set; }
 
+    // The bytes of a Bgra8 pixel are in the order B, G, R, A. SDL calls this order BGRA32.
+    internal const SDL3.SDL_PixelFormat IconFormat = SDL3.SDL_PixelFormat.SDL_PIXELFORMAT_BGRA32;
+
     public unsafe void SetWindowIcon(int width, int height, ReadOnlySpan<Bgra8> data)
     {
         IntPtr surface;
         fixed (Bgra8* ptr = &data.GetPinnableReference())
         {
-            surface = (IntPtr)SDL3.SDL_CreateSurfaceFrom(width, height, SDL3.SDL_PixelFormat.SDL_PIXELFORMAT_RGBA32,
-                (IntPtr)ptr, width * 4);
+            surface = (IntPtr)SDL3.SDL_CreateSurfaceFrom(width, height, IconFormat, (IntPtr)ptr, width * 4);
         }
         SDL3.SDL_SetWindowIcon(windowptr, surface);
         SDL3.SDL_DestroySurface(surface);

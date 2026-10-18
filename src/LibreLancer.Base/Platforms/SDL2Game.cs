@@ -67,6 +67,13 @@ internal class SDL2Game : IGame
     public float DpiScale { get; set; } = 1;
     public int Width => width;
 
+    // The masks of the channels in Bgra8.Pixel. On a little-endian CPU, the bytes B, G, R, A give the value
+    // A << 24 | R << 16 | G << 8 | B.
+    internal const uint IconRedMask = 0x00FF0000;
+    internal const uint IconGreenMask = 0x0000FF00;
+    internal const uint IconBlueMask = 0x000000FF;
+    internal const uint IconAlphaMask = 0xFF000000;
+
     public unsafe void SetWindowIcon(int width, int height, ReadOnlySpan<Bgra8> data)
     {
         IntPtr surface;
@@ -78,10 +85,10 @@ internal class SDL2Game : IGame
                 height,
                 32,
                 width * 4,
-                0xFF000000,
-                0x0000FF00,
-                0x000000FF,
-                0xFF000000);
+                IconRedMask,
+                IconGreenMask,
+                IconBlueMask,
+                IconAlphaMask);
         }
         SDL2.SDL_SetWindowIcon(windowptr, surface);
         SDL2.SDL_FreeSurface(surface);
