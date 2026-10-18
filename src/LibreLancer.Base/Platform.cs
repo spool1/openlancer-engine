@@ -10,7 +10,6 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using LibreLancer.Platforms;
-using LibreLancer.Dialogs;
 
 namespace LibreLancer;
 
@@ -170,36 +169,6 @@ public static class Platform
         return ((AssemblyInformationalVersionAttribute)Assembly
             .GetAssembly(typeof(T))
             ?.GetCustomAttributes(typeof(AssemblyInformationalVersionAttribute), false)[0]!)?.InformationalVersion;
-    }
-    //Make it hard to crash with a cryptic message at startup
-    private const string V2012_64 = "Librelancer requires Visual C++ 2012 redistributable (x64). Download from: https://download.microsoft.com/download/1/6/B/16B06F60-3B20-4FF2-B699-5E9B7962F9AE/VSU_4/vcredist_x64.exe";
-    private const string V2012_32 = "Librelancer requires Visual C++ 2012 redistributable (x86). Download from: https://download.microsoft.com/download/1/6/B/16B06F60-3B20-4FF2-B699-5E9B7962F9AE/VSU_4/vcredist_x86.exe";
-    private const string V2015_64 = "Librelancer requires the Microsoft Visual C++ Redistributable for Visual Studio 2015, 2017 and 2019 (x64). Download from: https://aka.ms/vs/16/release/vc_redist.x64.exe";
-    private const string V2015_32 = "Librelancer requires the Microsoft Visual C++ Redistributable for Visual Studio 2015, 2017 and 2019 (x86). Download from: https://aka.ms/vs/16/release/vc_redist.x86.exe";
-
-    private static bool CheckVCRun(string file, string errx64, string errx86)
-    {
-        if (LoadLibrary(file) == IntPtr.Zero)
-        {
-            CrashWindow.Run("Librelancer", "Missing Components",
-                "LoadLibrary failed for " + file + ": " + Marshal.GetLastWin32Error() + "\n" + (IntPtr.Size == 8 ? errx64 : errx86));
-            return false;
-        }
-        return true;
-    }
-
-    [DllImport("kernel32.dll", SetLastError=true)]
-    private static extern IntPtr LoadLibrary(string lpLibFileName);
-
-    public static bool CheckDependencies()
-    {
-        if (RunningOS != OS.Windows) return true;
-#if MSVC_BUILD
-            if (!CheckVCRun("vcruntime140.dll", V2015_64, V2015_32)) return false;
-            if(IntPtr.Size == 8) //vcruntime140_1.dll only seems present on x64
-                if (!CheckVCRun("vcruntime140_1.dll", V2015_64, V2015_32)) return false;
-#endif
-        return true;
     }
 }
 

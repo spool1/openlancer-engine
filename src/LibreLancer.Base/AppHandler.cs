@@ -144,11 +144,6 @@ public static class AppHandler
         try
         {
 #endif
-            if (!Platform.CheckDependencies())
-            {
-                return;
-            }
-
             action();
 #if !DEBUG
         }
