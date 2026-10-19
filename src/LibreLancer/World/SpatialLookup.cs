@@ -23,9 +23,12 @@ namespace LibreLancer.World
             AddToCell(key, cell, obj);
         }
 
+        // The lookup forgets the object. Else the entry keeps the removed object alive, and a second removal could
+        // remove a new cell with the same key. A second removal throws, as the removal of an unknown object does.
         public void RemoveObject(GameObject obj)
         {
             var cell = objToCell[obj];
+            objToCell.Remove(obj);
             RemoveFromCell(cell, obj);
         }
 

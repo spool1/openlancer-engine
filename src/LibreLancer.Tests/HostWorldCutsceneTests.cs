@@ -110,6 +110,7 @@ public class HostWorldCutsceneTests
 
         cutscene.RemoveObject(cutscene.GetObject("marker")!);
         Assert.Equal(new[] { host }, world.Objects);
+        // A second removal of the marker would throw (OL-0057).
         cutscene.Dispose();
 
         Assert.Equal(new[] { host }, world.Objects);
