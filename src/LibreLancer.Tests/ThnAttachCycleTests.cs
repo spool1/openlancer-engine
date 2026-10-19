@@ -57,6 +57,40 @@ public class ThnAttachCycleTests
                     float.IsFinite(obj.Rotate.W), obj.Name);
     }
 
+    // The rig of a sit conversation: at 0 s a reference marker takes the pose of the camera for one update, an offset
+    // marker follows the reference 1 m below it, and the camera moves to the offset marker for one update. The three
+    // attachments make a cycle at 0 s. Retail moves the camera down by the offset one time.
+    [Fact]
+    public void ACycleAtTimeZeroMovesTheCameraByTheOffsetOnce()
+    {
+        var start = new Vector3(2, 3, 4);
+        var camera = Marker("camera", start);
+        var reference = Marker("reference", start);
+        var offset = Marker("offset", start);
+        var instance = Instance(
+        [
+            Attach(0, 0, "reference", "camera", AttachFlags.Position | AttachFlags.Orientation),
+            Attach(0, 50, "offset", "reference", AttachFlags.Position | AttachFlags.Orientation, new Vector3(0, -1, 0)),
+            Attach(0, 0, "camera", "offset", AttachFlags.Position),
+        ], camera, reference, offset);
+
+        // Cutscene.SceneSetup runs the events at 0 s, then the build applies the poses of 0 s.
+        instance.Update(0);
+        Frame(instance, 0);
+        for (var i = 0; i < 10; i++)
+        {
+            Frame(instance, 1.0 / 60);
+        }
+
+        Assert.Equal(start + new Vector3(0, -1, 0), camera.Translate);
+        Assert.Empty(camera.Attachments);
+        Assert.Empty(reference.Attachments);
+        foreach (var obj in instance.Objects.Values)
+        {
+            AssertFinite(obj);
+        }
+    }
+
     // The rig of a stand conversation: the events at 1, 2, 3 and 4 ms start in the same 60 Hz frame. A target marker
     // goes in front of the camera for one update, then follows the actor. A chaser marker goes to the target for one
     // update, and the camera looks at the chaser. In that frame, the camera, the chaser and the target make a cycle.
@@ -135,5 +169,34 @@ public class ThnAttachCycleTests
         Assert.Contains("make a chain that is too deep to resolve", error.Message);
         // The objects that the exception left are not stuck: a short chain from the end resolves.
         Assert.Equal(Vector3.Zero, chain[depth - 3].GetTransform().Position);
+    }
+
+    // Retail ends an attach of 0 s at its start time: it applies the attach one time and stops it. An attach of 0 s at
+    // 0 s takes the pose of its parent at 0 s, also when the parent moves in the first frame.
+    [Fact]
+    public void AZeroDurationAttachAtTimeZeroTakesThePoseOfTimeZero()
+    {
+        var parent = Marker("parent", Vector3.Zero);
+        var child = Marker("child", new Vector3(5, 5, 5));
+        var instance = Instance(
+        [
+            new StartSpatialPropAnimEvent
+            {
+                Duration = 1, Targets = ["parent"], SetFlags = StartSpatialPropAnimEvent.AnimVars.Pos,
+                Pos = new Vector3(64, 0, 0),
+            },
+            Attach(0, 0, "child", "parent", AttachFlags.Position),
+        ], parent, child);
+
+        instance.Update(0);
+        Frame(instance, 0);
+        for (var i = 0; i < 4; i++)
+        {
+            Frame(instance, 1.0 / 64);
+        }
+
+        Assert.Equal(new Vector3(4, 0, 0), parent.Translate);
+        Assert.Equal(Vector3.Zero, child.Translate);
+        Assert.Empty(child.Attachments);
     }
 }
