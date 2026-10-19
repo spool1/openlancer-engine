@@ -72,7 +72,15 @@ public class HpTypesIni
         new("hp_turret_special_10", Weapon, 10, 1740, 909),
         new("hp_mine_dropper", Weapon, 0, 1522, 911),
         /*new HpType("hp_countermeasure", Weapon, 0, 1523, 910),*/
-        new("hp_countermeasure_dropper", Weapon, 0, 1523, 910)
+        new("hp_countermeasure_dropper", Weapon, 0, 1523, 910),
+        // The five generic types of the retail table. In retail, only NPC ships and mission ships use them. They have
+        // class 0 and no name text. Their family has no class number, so equipment of a class type does not mount on
+        // them.
+        new("hp_gun", Weapon, 0, 0, 0),
+        new("hp_turret", Weapon, 0, 0, 0),
+        new("hp_torpedo", Weapon, 0, 0, 0),
+        new("hp_shield_generator", External, 0, 0, 0),
+        new("hp_cargo_pod", External, 0, 0, 0)
     ];
 
     public Dictionary<string, HpType> Types = new(StringComparer.OrdinalIgnoreCase);
