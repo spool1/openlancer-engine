@@ -18,4 +18,8 @@ public partial class Simple
     public float Mass;
     [Entry("LODranges")]
     public float[]? LODranges;
+    // The level of detail that the retail client caps on low detail settings. The retail default is 1. OpenLancer does
+    // not need it.
+    [Entry("MinSpecLOD")]
+    public int MinSpecLOD = 1;
 }
