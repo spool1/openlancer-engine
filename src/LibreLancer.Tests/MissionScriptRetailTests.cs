@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Linq;
+using LibreLancer.Data;
 using LibreLancer.Data.IO;
 using LibreLancer.Data.Schema;
 using LibreLancer.Data.Schema.Missions;
@@ -43,6 +45,34 @@ public class MissionScriptRetailTests
         using var log = new LogCapture();
 
         Assert.Equal(2984, BuildTriggers(data.VFS));
+        Assert.Single(log.Lines(Skipped));
+    }
+
+    // The whole script of each of the 14 story missions loads with the loaded game data (OL-0063): the solars, the
+    // ships, the formations, the order lists, the loot, the ship builds and the triggers. Before OL-0061, the load of
+    // one mission stopped at a line that the engine cannot build.
+    [Fact]
+    public void EachRetailStoryMissionLoads()
+    {
+        var data = RetailData.Open();
+        var db = new GameItemDb(data.VFS);
+        db.LoadData();
+        var freelancer = new FreelancerIni(data.VFS);
+        var storyline = new StorylineIni();
+        storyline.AddDefault();
+        using var log = new LogCapture();
+
+        foreach (var mission in storyline.Missions)
+        {
+            var ini = new MissionIni(freelancer.DataPath + mission.File, data.VFS);
+            var script = new MissionScript(ini, db);
+            Assert.NotEmpty(script.InitTriggers);
+            // The script has one trigger for each name of a trigger section.
+            Assert.Equal(ini.Triggers.Select(t => t.Nickname).Distinct(StringComparer.OrdinalIgnoreCase).Count(),
+                script.AvailableTriggers.Count);
+        }
+
+        Assert.Equal(14, storyline.Missions.Count);
         Assert.Single(log.Lines(Skipped));
     }
 
