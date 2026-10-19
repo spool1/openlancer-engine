@@ -98,3 +98,70 @@ public partial class FuseImpulse : FuseAction //[impulse]
     [Entry("force")]
     public float Force;
 }
+
+// The server actions below come from the retail fuse reader. The fuse runner does not run them yet.
+// damage_type "absolute" means that the damage cannot kill the object. Each other text means that it can.
+
+[ParsedSection]
+public partial class FuseDamageRoot : FuseAction //[damage_root]
+{
+    [Entry("damage_type")]
+    public string? DamageType;
+    [Entry("hitpoints")]
+    public int Hitpoints;
+}
+
+[ParsedSection]
+public partial class FuseDamageGroup : FuseAction //[damage_group]
+{
+    [Entry("group_name")]
+    public string? GroupName;
+    [Entry("damage_type")]
+    public string? DamageType;
+    [Entry("hitpoints")]
+    public int Hitpoints;
+}
+
+[ParsedSection]
+public partial class FuseDamageHpAttachment : FuseAction //[damage_hp_attachment]
+{
+    [Entry("hardpoint")]
+    public string? Hardpoint;
+    [Entry("damage_type")]
+    public string? DamageType;
+    [Entry("hitpoints")]
+    public int Hitpoints;
+}
+
+// A dying ship tumbles: the angular drag scale, a random turn input in a range for each axis, a random throttle in a
+// range, and an engine kill.
+[ParsedSection]
+public partial class FuseTumble : FuseAction //[tumble]
+{
+    [Entry("ang_drag_scale")]
+    public float AngularDragScale = 1;
+    [Entry("turn_throttle_x")]
+    public Vector2 TurnThrottleX = new(0, 1);
+    [Entry("turn_throttle_y")]
+    public Vector2 TurnThrottleY = new(0, 1);
+    [Entry("turn_throttle_z")]
+    public Vector2 TurnThrottleZ = new(0, 1);
+    [Entry("throttle")]
+    public Vector2 Throttle;
+    [Entry("engine_kill")]
+    public bool EngineKill;
+}
+
+[ParsedSection]
+public partial class FuseMakeInvincible : FuseAction //[make_invincible]
+{
+    [Entry("turn_on")]
+    public bool TurnOn = true;
+}
+
+[ParsedSection]
+public partial class FuseDumpCargo : FuseAction //[dump_cargo]
+{
+    [Entry("origin_hardpoint")]
+    public string? OriginHardpoint;
+}

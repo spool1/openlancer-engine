@@ -19,6 +19,12 @@ public partial class FuseIni
     [Section("ignite_fuse", Type = typeof(FuseIgniteFuse), Child = true)]
     [Section("impulse", Type = typeof(FuseImpulse), Child = true)]
     [Section("destroy_root", Type = typeof(FuseDestroyRoot), Child = true)]
+    [Section("damage_root", Type = typeof(FuseDamageRoot), Child = true)]
+    [Section("damage_group", Type = typeof(FuseDamageGroup), Child = true)]
+    [Section("damage_hp_attachment", Type = typeof(FuseDamageHpAttachment), Child = true)]
+    [Section("tumble", Type = typeof(FuseTumble), Child = true)]
+    [Section("make_invincible", Type = typeof(FuseMakeInvincible), Child = true)]
+    [Section("dump_cargo", Type = typeof(FuseDumpCargo), Child = true)]
     public List<Fuse> Fuses = [];
     public void AddFuseIni(string path, FileSystem vfs, IniStringPool? stringPool = null)
     {
