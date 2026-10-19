@@ -22,4 +22,7 @@ public partial class NewCharPilot
     public string? BodyAnim;
     [Entry("comm.anim")]
     public string[]? CommAnim;
+    // The picture of the pilot on the retail new character screen. OpenLancer does not need it.
+    [Entry("thumb")]
+    public string? Thumb;
 }
