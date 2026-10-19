@@ -15,6 +15,8 @@ public class MarketGood
     public int Min; //Unused
     public int Max; //Unused
     public bool Preserve; //Only for equipment
+    // The sixth value: 0 the base buys and sells the good, 1 the base only buys it, 2 the base only sells it.
+    public int TransactionType;
     public float Multiplier;
 
     public MarketGood() { }
@@ -26,6 +28,7 @@ public class MarketGood
         Min = e[3].ToInt32();
         Max = e[4].ToInt32();
         Preserve = e[5].ToInt32() > 0;
+        TransactionType = e[5].ToInt32();
         Multiplier = e[6].ToSingle();
     }
 }
