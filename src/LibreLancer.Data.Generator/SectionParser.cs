@@ -587,6 +587,14 @@ public static class SectionParser
                 checkSet = true; // Avoids unused variable warning
             }
         }
+        // A handler that is not multiline also checks for a second line, also in a section without entries.
+        foreach (var handler in entryHandlers)
+        {
+            if (!handler.Multiline)
+            {
+                checkSet = true;
+            }
+        }
 
         //
         TabbedWriter tw = new();

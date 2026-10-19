@@ -11,8 +11,18 @@ namespace LibreLancer.Data.Schema.Fuses;
 
 public abstract class FuseAction
 {
-    [Entry("at_t")]
+    // at_t = a[, b]: the time of the action as a part of the fuse lifetime. With b, the server picks a random time
+    // between a and b at each ignition of the fuse. With one value, AtTMax equals AtT.
     public float AtT;
+    public float AtTMax;
+
+    [EntryHandler("at_t", MinComponents = 1)]
+    protected void HandleAtT(Entry e)
+    {
+        ParseHelpers.ComponentCheck(2, e.Section, e, 1);
+        AtT = e[0].ToSingle();
+        AtTMax = e.Count > 1 ? e[1].ToSingle() : AtT;
+    }
 }
 
 [ParsedSection]

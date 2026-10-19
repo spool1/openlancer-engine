@@ -23,11 +23,11 @@ namespace LibreLancer.Server.Components
 
         private class FuseInstance
         {
-            public Queue<FuseAction> Actions;
+            public Queue<(float Time, FuseAction Action)> Actions;
             public FuseResources Fuse;
             public double T;
 
-            public FuseInstance(Queue<FuseAction> actions, FuseResources fuse, double t)
+            public FuseInstance(Queue<(float Time, FuseAction Action)> actions, FuseResources fuse, double t)
             {
                 Actions = actions;
                 Fuse = fuse;
@@ -39,9 +39,16 @@ namespace LibreLancer.Server.Components
 
         public void Run(FuseResources fuse)
         {
-            var instance = new FuseInstance(new(fuse.Fuse.Actions.OrderBy(x => x.AtT)), fuse, 0.0);
+            var instance = new FuseInstance(new(Schedule(fuse.Fuse.Actions, Random.Shared)), fuse, 0.0);
             instances.Add(instance);
         }
+
+        // The actions of one ignition of a fuse, in the order of their times. An action with two at_t values gets a
+        // new random time between them at each ignition. Actions with the same time keep the order of the file.
+        internal static IEnumerable<(float Time, FuseAction Action)> Schedule(IEnumerable<FuseAction> actions,
+            Random random) =>
+            actions.Select(x => (x.AtTMax > x.AtT ? x.AtT + (x.AtTMax - x.AtT) * random.NextSingle() : x.AtT, x))
+                .OrderBy(x => x.Item1);
 
         private BitArray128 runningHealthFuses = new();
         public List<DamageFuse> DamageFuses = [];
@@ -66,11 +73,9 @@ namespace LibreLancer.Server.Components
         private void Update(double time, GameWorld world, FuseInstance instance)
         {
             instance.T += time / instance.Fuse.Fuse.Lifetime;
-            FuseAction act;
-
-            while (instance.Actions.Count > 0 && (act = instance.Actions.Peek()).AtT <= instance.T)
+            while (instance.Actions.Count > 0 && instance.Actions.Peek().Time <= instance.T)
             {
-                instance.Actions.Dequeue();
+                var act = instance.Actions.Dequeue().Action;
 
                 if (act is FuseStartEffect fxact)
                 {
