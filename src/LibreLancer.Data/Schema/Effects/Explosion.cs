@@ -8,7 +8,8 @@ namespace LibreLancer.Data.Schema.Effects;
 public partial class Explosion
 {
     [Entry("nickname", Required = true)] public string Nickname = null!;
-    [Entry("lifetime")] public Vector2 Lifetime;
+    // The minimum and the maximum lifetime.
+    public Vector2 Lifetime;
     [Entry("process")] public string? Process;
     [Entry("radius")] public float Radius;
     [Entry("hull_damage")] public float HullDamage;
@@ -21,16 +22,23 @@ public partial class Explosion
     [Entry("innards_debris_object", Multiline = true)]
     public List<string> InnardsDebrisObjects = [];
 
+    // The last effect line. Effects has each effect line.
     public string? Effect;
     public float EffectSParam; // guess
+    public List<(string Name, float? Strength)> Effects = [];
 
     public List<(string Name, float Weight)> DebrisTypes = [];
 
-    [EntryHandler("effect", MinComponents = 1)]
+    [EntryHandler("lifetime", MinComponents = 1)]
+    private void HandleLifetime(Entry e) => Lifetime = ExplosionLines.Lifetime(e);
+
+    [EntryHandler("effect", MinComponents = 1, Multiline = true)]
     private void HandleEffect(Entry e)
     {
-        Effect = e[0].ToString();
-        EffectSParam = e.Count > 1 ? e[1].ToSingle() : 0.0f;
+        var effect = ExplosionLines.Effect(e);
+        Effects.Add(effect);
+        Effect = effect.Name;
+        EffectSParam = effect.Strength ?? 0.0f;
     }
 
     [EntryHandler("debris_type", MinComponents = 2, Multiline = true)]
