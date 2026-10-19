@@ -183,8 +183,7 @@ namespace LibreLancer.Missions
 
             foreach (var tr in ini.Triggers)
             {
-                AvailableTriggers[tr.Nickname] = new ScriptedTrigger(tr.Nickname, tr.Repeatable,
-                    ScriptedCondition.Convert(tr.Conditions).ToArray(), ScriptedAction.Convert(tr.Actions).ToArray());
+                AvailableTriggers[tr.Nickname] = ScriptedTrigger.FromIni(tr);
 
                 if (tr.InitState == TriggerInitState.ACTIVE)
                 {
@@ -232,5 +231,10 @@ namespace LibreLancer.Missions
             Conditions = conditions;
             Actions = actions;
         }
+
+        // Builds a trigger of a script. A line that the engine cannot build is skipped with a warning (OL-0061).
+        public static ScriptedTrigger FromIni(MissionTrigger tr) => new(tr.Nickname, tr.Repeatable,
+            ScriptedCondition.Convert(tr.Conditions, tr.Nickname).ToArray(),
+            ScriptedAction.Convert(tr.Actions, tr.Nickname).ToArray());
     }
 }

@@ -55,11 +55,38 @@ public abstract class ScriptedCondition : TriggerEntry
         TriggerConditions.Cnd_JumpgateAct
     ];
 
-    public static IEnumerable<ScriptedCondition> Convert(IEnumerable<MissionCondition> conditions)
+    // Builds the conditions of a trigger. The engine cannot build a name of Unsupported or a name without a class. Such a
+    // line is skipped with a warning that names the trigger and the line, so the mission still loads (OL-0061). A trigger
+    // whose only conditions are skipped gets a condition that is never true. Without a condition, the trigger would run
+    // at once.
+    public static IEnumerable<ScriptedCondition> Convert(IEnumerable<MissionCondition> conditions, string trigger)
     {
+        var result = new List<ScriptedCondition>();
+        var skipped = false;
         foreach (var c in conditions)
         {
-            yield return c.Type switch
+            if (Unsupported.Contains(c.Type) || Build(c) is not { } condition)
+            {
+                FLLog.Warning("Mission", $"The engine cannot run {c.Entry.Name} in trigger '{trigger}' and skips the line" +
+                                         IniDiagnostic.FormatLine(c.Entry.Section.File, c.Entry.Line, c.Entry.Section));
+                skipped = true;
+                continue;
+            }
+
+            result.Add(condition);
+        }
+
+        if (skipped && result.Count == 0)
+        {
+            FLLog.Warning("Mission", $"Trigger '{trigger}' has no condition that the engine can run, so it never runs");
+            result.Add(new NeverCondition());
+        }
+
+        return result;
+    }
+
+    private static ScriptedCondition? Build(MissionCondition c) =>
+            c.Type switch
             {
                 TriggerConditions.Cnd_WatchVibe => new Cnd_WatchVibe(c.Entry),
                 TriggerConditions.Cnd_WatchTrigger => new Cnd_WatchTrigger(c.Entry),
@@ -87,7 +114,7 @@ public abstract class ScriptedCondition : TriggerEntry
                 TriggerConditions.Cnd_LocEnter => new Cnd_LocEnter(c.Entry),
                 TriggerConditions.Cnd_LaunchComplete => new Cnd_LaunchComplete(c.Entry),
                 TriggerConditions.Cnd_JumpInComplete => new Cnd_JumpInComplete(c.Entry),
-                TriggerConditions.Cnd_JumpgateAct => new Cnd_JumpgateAct(c.Entry),
+                // TriggerConditions.Cnd_JumpgateAct => new Cnd_JumpgateAct(c.Entry),
                 TriggerConditions.Cnd_InZone => new Cnd_InZone(c.Entry),
                 TriggerConditions.Cnd_InTradelane => new Cnd_InTradelane(c.Entry),
                 TriggerConditions.Cnd_InSpace => new Cnd_InSpace(c.Entry),
@@ -99,16 +126,27 @@ public abstract class ScriptedCondition : TriggerEntry
                 TriggerConditions.Cnd_DistShip => new Cnd_DistShip(c.Entry),
                 TriggerConditions.Cnd_DistCircle => new Cnd_DistCircle(c.Entry),
                 TriggerConditions.Cnd_Destroyed => new Cnd_Destroyed(c.Entry),
-                TriggerConditions.Cnd_CmpToPlane => new Cnd_CmpToPlane(c.Entry),
+                // TriggerConditions.Cnd_CmpToPlane => new Cnd_CmpToPlane(c.Entry),
                 TriggerConditions.Cnd_CommComplete => new Cnd_CommComplete(c.Entry),
                 TriggerConditions.Cnd_CharSelect => new Cnd_CharSelect(c.Entry),
                 TriggerConditions.Cnd_CargoScanned => new Cnd_CargoScanned(c.Entry),
                 TriggerConditions.Cnd_BaseExit => new Cnd_BaseExit(c.Entry),
                 TriggerConditions.Cnd_BaseEnter => new Cnd_BaseEnter(c.Entry),
-                _ => throw new ArgumentOutOfRangeException()
+                _ => null
             };
-        }
+}
+
+// The condition of a trigger whose conditions the engine cannot run (OL-0061). It is never true, so the trigger never
+// runs. It has no line in the script, so it writes nothing.
+public sealed class NeverCondition : ScriptedCondition
+{
+    public override bool CheckCondition(MissionRuntime runtime, ActiveCondition self, double elapsed) => false;
+
+    public override void Write(IniBuilder.IniSectionBuilder section)
+    {
     }
+
+    public override string ToString() => "Never true: the engine cannot run the conditions of this trigger";
 }
 
 public abstract class EventListenerCondition<T> : ScriptedCondition where T : struct

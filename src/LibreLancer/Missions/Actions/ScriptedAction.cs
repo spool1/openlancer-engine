@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using LibreLancer.Data.Ini;
 using LibreLancer.Data.Schema.Missions;
@@ -85,11 +86,25 @@ namespace LibreLancer.Missions.Actions
             TriggerActions.Act_GiveMB
         ];
 
-        public static IEnumerable<ScriptedAction> Convert(IEnumerable<MissionAction> actions)
+        // Builds the actions of a trigger. The engine cannot build a name of Unsupported or a name without a class. Such a
+        // line is skipped with a warning that names the trigger and the line, so the mission still loads (OL-0061).
+        public static IEnumerable<ScriptedAction> Convert(IEnumerable<MissionAction> actions, string trigger)
         {
             foreach (var a in actions)
             {
-                yield return a.Type switch
+                if (Unsupported.Contains(a.Type) || Build(a) is not { } action)
+                {
+                    FLLog.Warning("Mission", $"The engine cannot run {a.Entry.Name} in trigger '{trigger}' and skips the line" +
+                                             IniDiagnostic.FormatLine(a.Entry.Section.File, a.Entry.Line, a.Entry.Section));
+                    continue;
+                }
+
+                yield return action;
+            }
+        }
+
+        private static ScriptedAction? Build(MissionAction a) =>
+                a.Type switch
                 {
                     TriggerActions.Act_StaticCam => new Act_StaticCam(a),
                     TriggerActions.Act_StartDialog => new Act_StartDialog(a),
@@ -176,10 +191,8 @@ namespace LibreLancer.Missions.Actions
                     TriggerActions.Act_AddRTC => new Act_AddRTC(a),
                     TriggerActions.Act_AddAmbient => new Act_AddAmbient(a),
                     TriggerActions.Act_ActTrig => new Act_ActTrig(a),
-                    _ => throw new ArgumentOutOfRangeException()
+                    _ => null
                 };
-            }
-        }
     }
 
     public class Act_SetNNObj : ScriptedAction
