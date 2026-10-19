@@ -38,7 +38,8 @@ public class PlayerEquipment
 
 public class PlayerCargo
 {
-    //hash, count, percentage_health, UNK, mission_cargo
+    // cargo = item, count, hardpoint, health, mission. An empty value keeps its default. The engine does not keep the
+    // hardpoint, and writes it empty.
     public HashValue Item;
     public float PercentageHealth = 1;
     public int Count;
@@ -51,17 +52,19 @@ public class PlayerCargo
         if (!uint.TryParse(s, out uint hash)) Item = new HashValue(s);
         else Item = hash;
         Count = e[1].ToInt32();
-        if (e.Count > 2)
-            PercentageHealth = e[2].ToSingle();
-        if (e.Count > 4)
+        if (e.Count > 3 && !IsEmpty(e[3]))
+            PercentageHealth = e[3].ToSingle();
+        if (e.Count > 4 && !IsEmpty(e[4]))
             IsMissionCargo = e[4].ToBoolean();
     }
+
+    private static bool IsEmpty(ValueBase value) => string.IsNullOrWhiteSpace(value.ToString());
 
     public string ToString(string ename)
     {
         string hStr = "";
         if (PercentageHealth < 1) hStr = PercentageHealth.ToString(CultureInfo.InvariantCulture);
-        return $"{ename} = {(uint)Item}, {Count}, {hStr}, , {(IsMissionCargo ? 1 : 0)}";
+        return $"{ename} = {(uint)Item}, {Count}, , {hStr}, {(IsMissionCargo ? 1 : 0)}";
     }
 
     public override string ToString() => ToString("cargo");
@@ -257,7 +260,7 @@ public partial class SavePlayer : IWriteSection
             ValueBase hstr = c.PercentageHealth < 1
                 ? new SingleValue(c.PercentageHealth, null)
                 : "";
-            sec.Entry("cargo", c.Item, c.Count, hstr, "", (c.IsMissionCargo ? 1 : 0));
+            sec.Entry("cargo", c.Item, c.Count, "", hstr, (c.IsMissionCargo ? 1 : 0));
         }
         foreach (var part in DestroyedParts)
             sec.Entry("destroyed_part", part);
