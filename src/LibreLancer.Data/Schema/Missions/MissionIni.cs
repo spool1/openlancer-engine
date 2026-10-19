@@ -31,6 +31,10 @@ public partial class MissionIni
     public List<MissionLoot> Loots = [];
     [Section("ObjList")]
     public List<ObjList> ObjLists = [];
+    [Section("MsnRandEnc")]
+    public List<MissionRandomEncounter> RandomEncounters = [];
+    [Section("MetaBehavior")]
+    public List<MetaBehavior> MetaBehaviors = [];
 
     public NPCShipIni? ShipIni;
     public MissionIni()

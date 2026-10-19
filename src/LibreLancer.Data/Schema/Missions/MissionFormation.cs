@@ -22,6 +22,9 @@ public partial class MissionFormation
     public string? Formation;
     [Entry("ship", Multiline = true)]
     public List<string> Ships = [];
+    // Retail reads [MsnFormation] as [MsnShip], so a formation can also have labels.
+    [Entry("label", Multiline = true)]
+    public List<string> Labels = [];
 
 
     public MissionRelativePosition RelativePosition = new();
