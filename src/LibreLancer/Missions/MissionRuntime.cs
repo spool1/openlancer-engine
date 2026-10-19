@@ -248,7 +248,12 @@ namespace LibreLancer.Missions
 
         public void ActivateTrigger(string trigger)
         {
-            var t = Script.AvailableTriggers[trigger];
+            // Retail ignores a start of a trigger that the script does not have (OL-0062).
+            if (!Script.AvailableTriggers.TryGetValue(trigger, out var t))
+            {
+                FLLog.Warning("Mission", $"The script has no trigger '{trigger}'. The engine ignores the start of it");
+                return;
+            }
 
             if (t.Conditions.Length == 1 && t.Conditions[0] is Cnd_True)
             {
