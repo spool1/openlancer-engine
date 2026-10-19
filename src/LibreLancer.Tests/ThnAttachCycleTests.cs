@@ -167,7 +167,10 @@ public class ThnAttachCycleTests
 
         var error = Assert.Throws<InvalidOperationException>(() => chain[0].GetTransform());
         Assert.Contains("make a chain that is too deep to resolve", error.Message);
-        // The objects that the exception left are not stuck: a short chain from the end resolves.
+        // The exception resets the guard of each object that it left. Else the first object would give its stored pose
+        // as the end of a cycle, and the second call would not throw.
+        Assert.Throws<InvalidOperationException>(() => chain[0].GetTransform());
+        // A short chain from the end resolves.
         Assert.Equal(Vector3.Zero, chain[depth - 3].GetTransform().Position);
     }
 
