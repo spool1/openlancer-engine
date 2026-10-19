@@ -124,6 +124,16 @@ public partial class Ship
     [Entry("explosion_resistance")]
     public float ExplosionResistance;
 
+    // The docking spheres of the ship, one for each docking_sphere line. Ship docking waits for the OpenLancer
+    // runtime. The defaults of the three keys below are the retail defaults. Retail never uses distance_render.
+    public List<DockSphere> DockingSpheres = [];
+    [Entry("docking_camera")]
+    public bool DockingCamera = true;
+    [Entry("camera_angular_slerp_multiplier")]
+    public float CameraAngularSlerpMultiplier = 0.04f;
+    [Entry("distance_render")]
+    public float DistanceRender = -1;
+
     public List<ObjectFuse> Fuses = [];
 
     public List<ShipHpDef> HardpointTypes = [];
@@ -146,6 +156,9 @@ public partial class Ship
 
     [EntryHandler("shield_link", MinComponents = 3)]
     private void HandleShieldLink(Entry e) => ShieldLink = new ShieldLink(e);
+
+    [EntryHandler("docking_sphere", MinComponents = 3, Multiline = true)]
+    private void HandleDockingSphere(Entry e) => DockingSpheres.Add(DockSphere.FromEntry(e));
 }
 
 public class ShieldLink

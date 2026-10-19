@@ -2,7 +2,6 @@
 // This file is subject to the terms and conditions defined in
 // LICENSE, which is part of this source code package
 
-using System;
 using System.Collections.Generic;
 using LibreLancer.Data.Ini;
 using LibreLancer.Data.Schema.Solar;
@@ -81,15 +80,6 @@ public partial class Archetype
     private void HandleShieldLink(Entry e) => ShieldLink = new ShieldLink(e);
 
     [EntryHandler("docking_sphere", MinComponents = 3, Multiline = true)]
-    private void HandleDockingSphere(Entry e)
-    {
-        string? scr = e.Count == 4 ? e[3].ToString() : null;
-        if (!Enum.TryParse<DockSphereType>(e[0].ToString(), true, out var type))
-        {
-            IniDiagnostic.InvalidEnum(e, e.Section);
-        }
-
-        DockingSpheres.Add(new DockSphere(type, e[1].ToString(), e[2].ToInt32(), scr));
-    }
+    private void HandleDockingSphere(Entry e) => DockingSpheres.Add(DockSphere.FromEntry(e));
 
 }
