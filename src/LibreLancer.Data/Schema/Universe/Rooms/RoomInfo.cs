@@ -16,8 +16,12 @@ public partial class RoomInfo
     [Entry("goodscart_script")]
     public string? GoodscartScript;
 
-    [Entry("animation")]
-    public string? Animation;
+    // Each animation line adds a looping animation, and each animation_oneshot line one that plays one time. Retail
+    // keeps up to 32. The engine does not play room animations yet.
+    [Entry("animation", Multiline = true)]
+    public List<string> Animations = [];
+    [Entry("animation_oneshot", Multiline = true)]
+    public List<string> OneShotAnimations = [];
 
     [EntryHandler("scene", MinComponents = 2, Multiline = true)]
     private void Scene(Entry e)
