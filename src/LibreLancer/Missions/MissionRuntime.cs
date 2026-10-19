@@ -77,9 +77,10 @@ namespace LibreLancer.Missions
             UpdateUiTriggers();
         }
 
-        private static NetObjective ToNetObjective(NNObjective objective) => objective.Type switch
+        // An objective of type base shows its text. The way point to the base is not done.
+        internal static NetObjective ToNetObjective(NNObjective objective) => objective.Type switch
         {
-            NNObjectiveType.ids => new NetObjective(objective.NameIds),
+            NNObjectiveType.ids or NNObjectiveType.@base => new NetObjective(objective.NameIds),
             NNObjectiveType.navmarker => new NetObjective(
                 objective.NameIds,
                 objective.ExplanationIds,

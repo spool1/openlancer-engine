@@ -24,6 +24,8 @@ public partial class NNObjective
     public int ExplanationIds;
     public Vector3 Position;
     public string SolarNickname = "";
+    // The base of an objective of type base: a base nickname or a number.
+    public string Base = "";
 
     [EntryHandler("type", MinComponents = 2)]
     void HandleType(Entry e)
@@ -60,6 +62,16 @@ public partial class NNObjective
                 Position = new(e[4].ToSingle(), e[5].ToSingle(), e[6].ToSingle());
                 SolarNickname = e[7].ToString();
                 break;
+            case NNObjectiveType.@base:
+                // type = base, <base nickname or number>, <text id>
+                if (e.Count < 3)
+                {
+                    IniDiagnostic.Warn($"base needs 3 entries, got {e.Count}", e);
+                    return;
+                }
+                Base = e[1].ToString();
+                NameIds = e[2].ToInt32();
+                break;
         }
     }
 }
@@ -68,6 +80,7 @@ public enum NNObjectiveType
 {
     ids,
     rep_inst,
-    navmarker
+    navmarker,
+    @base
 }
 

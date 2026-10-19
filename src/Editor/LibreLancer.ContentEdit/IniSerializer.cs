@@ -740,6 +740,9 @@ public static class IniSerializer
                     objective.Position.Z,
                     objective.SolarNickname);
                 break;
+            case NNObjectiveType.@base:
+                obj.Entry("type", "base", objective.Base, objective.NameIds);
+                break;
         }
 
     }
