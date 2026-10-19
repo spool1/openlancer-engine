@@ -28,10 +28,11 @@ namespace LibreLancer.Thn.Events
             public override bool Run(double delta)
             {
                 t += delta;
-                if (t > Duration)
+                if (t >= Duration)
                 {
-                    // The scene object applies the attachment one more time, then removes it. A zero-duration
-                    // attach that starts after T=0 must still move the child.
+                    // Retail updates an attach for the last time at its end time, and then stops it. So an attach
+                    // of 0 s applies one time, also at 0 s. The scene object applies the attachment that one time,
+                    // then removes it.
                     Attachment.Expired = true;
                     return false;
                 }

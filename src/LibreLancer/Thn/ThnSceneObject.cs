@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using LibreLancer.Client.Components;
 using LibreLancer.Render;
 using LibreLancer.World;
@@ -32,10 +33,36 @@ public class ThnSceneObject
 
     public List<ThnAttachment> Attachments = new();
 
+    // True while GetTransform of this object runs. An attachment cycle comes back to an object that resolves.
+    private bool resolving;
+
+    // Retail reads the stored pose of the parent of an attachment. It does not follow the attachments of the parent,
+    // so a cycle of attachments cannot loop. Here the pose of a parent follows its own attachments. So a cycle comes
+    // back to an object that resolves, and that object gives its stored pose, the pose of the last update.
     public Transform3D GetTransform()
     {
-        var result = GetTransformInternal();
-        return result;
+        if (resolving)
+        {
+            return PosFromObject ? Object!.Transform : new Transform3D(Translate, Rotate);
+        }
+
+        // A chain of attachments that is too deep for the stack stops with an exception that the caller can catch.
+        // A stack overflow would end the process.
+        if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
+        {
+            throw new InvalidOperationException(
+                $"The attachments of the scene object {Name} make a chain that is too deep to resolve.");
+        }
+
+        resolving = true;
+        try
+        {
+            return GetTransformInternal();
+        }
+        finally
+        {
+            resolving = false;
+        }
     }
 
 
