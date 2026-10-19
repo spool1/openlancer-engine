@@ -27,4 +27,16 @@ public partial class LightSource : NamedObject
     public Vector3? Attenuation;
     [Entry("direction")]
     public Vector3? Direction;
+
+    // color_curve = <graph>, <period>: the color of the graph multiplies the light color over time. The time starts
+    // again at the period. The engine does not change the color yet.
+    public string? ColorCurve;
+    public float ColorCurvePeriod;
+
+    [EntryHandler("color_curve", MinComponents = 2)]
+    private void HandleColorCurve(Entry e)
+    {
+        ColorCurve = e[0].ToString();
+        ColorCurvePeriod = e[1].ToSingle();
+    }
 }
