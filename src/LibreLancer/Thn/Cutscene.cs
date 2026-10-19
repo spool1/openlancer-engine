@@ -124,6 +124,19 @@ public class Cutscene : IDisposable
         camera = new ThnCamera(viewport);
     }
 
+    /// <summary>
+    /// Plays scripts in a world that the host owns and draws, for example the star system of an editor preview. The
+    /// scripts make their objects in the world of the host, and <see cref="Dispose"/> removes these objects. The
+    /// cutscene has no renderer. So it changes no lighting, and it does not step or draw the world.
+    /// </summary>
+    public Cutscene(ThnScriptContext context, GameWorld world, GameDataManager data, GameResourceManager resources,
+        SoundManager? sound, Rectangle viewport, Game game) : this(context, data, resources, sound, viewport, game)
+    {
+        World = world;
+        ownsWorld = false;
+        spawnObjects = true;
+    }
+
     public void UpdateViewport(Rectangle vp, float fullRatio)
     {
         camera?.SetViewport(vp, fullRatio);
@@ -150,6 +163,8 @@ public class Cutscene : IDisposable
         if (obj.Object != null)
         {
             World.RemoveObject(obj.Object);
+            // Dispose removes the objects that the cutscene made in the world of the host. A second removal throws.
+            spawnedObjects.Remove(obj.Object);
         }
         if (fidgets.TryGetValue(obj.Name, out var fidget))
         {

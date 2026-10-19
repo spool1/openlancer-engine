@@ -58,7 +58,10 @@ namespace LibreLancer.Thn.Events
         public override void Run(ThnScriptInstance instance)
         {
             if (SetFlags == AnimVars.Nothing) return; // Nothing to change
-            var light = instance.Cutscene.Renderer!.SystemLighting;
+            // A cutscene in the world of a host has no renderer, and it changes no lighting. The game plays a space
+            // cutscene in that way, and the space view keeps its own fog.
+            if (instance.Cutscene.Renderer == null) return;
+            var light = instance.Cutscene.Renderer.SystemLighting;
 
             // mode and fog on/off
             if ((SetFlags & AnimVars.FogOn) == AnimVars.FogOn)
