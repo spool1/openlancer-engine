@@ -13,4 +13,7 @@ public partial class DynamicAsteroid
     public string? MaterialLibrary;
     [Entry("explosion_arch")]
     public string? ExplosionArch;
+    // The particle effect that the client attaches to the asteroid. The engine does not show it yet.
+    [Entry("particle_effect")]
+    public string? ParticleEffect;
 }
