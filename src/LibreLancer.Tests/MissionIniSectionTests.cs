@@ -78,6 +78,27 @@ public class MissionIniSectionTests
         Assert.Equal(8, behavior.Guides[0].Count);
     }
 
+    // Retail keeps a [MsnRandEnc] and a [MetaBehavior] without a nickname, with an empty name (OL-0053). So the engine
+    // keeps them too, without an error.
+    [Fact]
+    public void ASectionWithoutANicknameHasAnEmptyName()
+    {
+        using var log = new LogCapture();
+        var mission = Parse("""
+            [MsnRandEnc]
+            encounter_type = SP_Attack
+
+            [MetaBehavior]
+            MB_DockGuide = sample_dock
+            """);
+
+        Assert.Empty(log.Lines(IniText.File));
+        Assert.Equal(("", "SP_Attack"), (Assert.Single(mission.RandomEncounters).Nickname, mission.RandomEncounters[0].EncounterType));
+        var behavior = Assert.Single(mission.MetaBehaviors);
+        Assert.Equal("", behavior.Nickname);
+        Assert.Equal(["MB_DockGuide"], behavior.Guides.Select(x => x.Name));
+    }
+
     // The game ignores a key of a [MetaBehavior] that is not a guide line, so the engine warns about it.
     [Fact]
     public void AnotherKeyOfAMetaBehaviorGivesAWarning()

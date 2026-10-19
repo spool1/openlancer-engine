@@ -5,12 +5,13 @@ namespace LibreLancer.Data.Schema.Missions;
 
 // [MsnRandEnc]: a random attack encounter that a mission owns. The mission enables and disables it by its nickname.
 // encounter_type is TL_Attack (on a trade lane) or SP_Attack (in space). The encounter reads the other keys of the
-// section itself, so this class keeps them as raw entries. The mission runtime does not use the section yet.
+// section itself, so this class keeps them as raw entries. The mission runtime does not use the section yet. Retail
+// keeps a section without a nickname: its name is empty.
 [ParsedSection]
 public partial class MissionRandomEncounter : IEntryHandler
 {
-    [Entry("nickname", Required = true)]
-    public string Nickname = null!;
+    [Entry("nickname")]
+    public string Nickname = "";
     [Entry("encounter_type")]
     public string? EncounterType;
 

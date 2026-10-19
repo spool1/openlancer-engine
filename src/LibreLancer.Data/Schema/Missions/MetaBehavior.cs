@@ -6,12 +6,13 @@ namespace LibreLancer.Data.Schema.Missions;
 
 // [MetaBehavior]: a named list of guide lines that a mission gives to a ship. MB_GotoGuide sends the ship to a target
 // or a position, and MB_DockGuide makes it dock. This class keeps each guide line as a raw entry. The game ignores the
-// system key and each other key. The mission runtime does not use the section yet.
+// system key and each other key. The mission runtime does not use the section yet. Retail keeps a section without a
+// nickname: its name is empty.
 [ParsedSection]
 public partial class MetaBehavior : IEntryHandler
 {
-    [Entry("nickname", Required = true)]
-    public string Nickname = null!;
+    [Entry("nickname")]
+    public string Nickname = "";
     [Entry("system")]
     public string? System;
 
