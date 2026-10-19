@@ -66,7 +66,8 @@ CIMGUI_API void igTableFullRowEnd();
 typedef void *texteditor_t;
 typedef enum texteditor_mode {
     TEXTEDITOR_MODE_NORMAL,
-    TEXTEDITOR_MODE_LUA
+    TEXTEDITOR_MODE_LUA,
+    TEXTEDITOR_MODE_INI
 } texteditor_mode_t;
 CIMGUI_API texteditor_t igExtTextEditorInit();
 CIMGUI_API const char *igExtTextEditorGetText(texteditor_t textedit);
@@ -78,6 +79,16 @@ CIMGUI_API int igExtTextEditorGetUndoIndex(texteditor_t textedit);
 CIMGUI_API void igExtTextEditorGetCoordinates(texteditor_t textedit, int32_t *x, int32_t *y);
 CIMGUI_API void igExtTextEditorRender(texteditor_t textedit, const char *id);
 CIMGUI_API void igExtTextEditorFree(texteditor_t textedit);
+//text editor: INI mode, line marks and cursor calls (OpenLancer)
+CIMGUI_API void igExtTextEditorSetIdentifiers(texteditor_t textedit, int kind, const char *names);
+CIMGUI_API void igExtTextEditorAddMarker(texteditor_t textedit, int line, uint32_t lineColor, uint32_t textColor, const char *lineTooltip, const char *textTooltip);
+CIMGUI_API void igExtTextEditorClearMarkers(texteditor_t textedit);
+CIMGUI_API int igExtTextEditorHasMarkers(texteditor_t textedit);
+CIMGUI_API void igExtTextEditorSetCursor(texteditor_t textedit, int line, int column);
+CIMGUI_API void igExtTextEditorScrollToLine(texteditor_t textedit, int line);
+CIMGUI_API void igExtTextEditorSelectLine(texteditor_t textedit, int line);
+CIMGUI_API int igExtTextEditorGetLineCount(texteditor_t textedit);
+CIMGUI_API int igExtTextEditorSetPalette(texteditor_t textedit, const uint32_t *colors, int count);
 //guizmo
 CIMGUI_API void igGuizmoBeginFrame();
 CIMGUI_API void igGuizmoSetOrthographic(int orthographic);
