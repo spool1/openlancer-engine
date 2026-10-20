@@ -136,8 +136,22 @@ internal sealed class GLTexture2D : GLTexture, ITexture2D
         var ts = new TaskCompletionSource<byte[]>();
         GL.Flush();
         var sync = GL.FenceSync(GL.GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-        rc?.AddFence(sync, () => ts.SetResult(ReadPixelBuffer(pbo, sz)));
+        rc?.AddFence(sync, () => CompleteRead(ts, pbo, sz));
         return ts.Task;
+    }
+
+    // OL-0066: Gives the pixels of the pixel buffer to the task of GetDataAsync. A copy that fails faults the task.
+    // Before, the exception went out of the fence callback into the frame loop, and the task never completed.
+    internal static void CompleteRead(TaskCompletionSource<byte[]> read, uint pbo, int size)
+    {
+        try
+        {
+            read.TrySetResult(ReadPixelBuffer(pbo, size));
+        }
+        catch (Exception e)
+        {
+            read.TrySetException(e);
+        }
     }
 
     // OL-0064: Copies the pixels of the pixel buffer of GetDataAsync, then deletes the buffer, also when the copy

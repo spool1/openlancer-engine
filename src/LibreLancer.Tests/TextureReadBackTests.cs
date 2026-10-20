@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using LibreLancer.Graphics.Backends.OpenGL;
 using Xunit;
 
@@ -8,7 +9,8 @@ namespace LibreLancer.Tests;
 
 // The pixel buffer of Texture2D.GetDataAsync (OL-0064). The read copies the pixels of the buffer when its fence
 // signals. No code deleted the buffer, so each read kept its pixels in the memory of the driver. The editor reads each
-// thumbnail in this way. The suite has no GL context, so the tests load a fake GL with the four functions of the copy.
+// thumbnail in this way. A copy that failed also left the task of the read pending, and its exception went into the
+// frame loop (OL-0066). The suite has no GL context, so the tests load a fake GL with the four functions of the copy.
 // No other test of the suite calls GL. The tests unload the fake GL at their end.
 public class TextureReadBackTests
 {
@@ -49,6 +51,48 @@ public class TextureReadBackTests
         Assert.Throws<ArgumentNullException>(() =>
             WithFakeGL(IntPtr.Zero, () => GLTexture2D.ReadPixelBuffer(Buffer, 8)));
 
+        Assert.Equal(["bind 7", "map 8", "bind 0", "delete 7"], calls);
+    }
+
+    [Fact]
+    public void TheReadGivesThePixelsToItsTask()
+    {
+        byte[] pixels = [1, 2, 3, 4];
+        var pinned = GCHandle.Alloc(pixels, GCHandleType.Pinned);
+        try
+        {
+            var read = new TaskCompletionSource<byte[]>();
+
+            WithFakeGL(pinned.AddrOfPinnedObject(), () =>
+            {
+                GLTexture2D.CompleteRead(read, Buffer, pixels.Length);
+                return 0;
+            });
+
+            Assert.True(read.Task.IsCompletedSuccessfully);
+            Assert.Equal(pixels, read.Task.Result);
+            Assert.Equal(["bind 7", "map 4", "unmap", "bind 0", "delete 7"], calls);
+        }
+        finally
+        {
+            pinned.Free();
+        }
+    }
+
+    // OL-0066: the fence callback must not throw into the frame loop, and the caller must see the failure.
+    [Fact]
+    public void AReadThatFailsFaultsItsTaskAndDoesNotThrow()
+    {
+        var read = new TaskCompletionSource<byte[]>();
+
+        WithFakeGL(IntPtr.Zero, () =>
+        {
+            GLTexture2D.CompleteRead(read, Buffer, 8);
+            return 0;
+        });
+
+        Assert.True(read.Task.IsFaulted);
+        Assert.IsType<ArgumentNullException>(read.Task.Exception!.InnerException);
         Assert.Equal(["bind 7", "map 8", "bind 0", "delete 7"], calls);
     }
 
