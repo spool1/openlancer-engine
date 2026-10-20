@@ -136,17 +136,28 @@ internal sealed class GLTexture2D : GLTexture, ITexture2D
         var ts = new TaskCompletionSource<byte[]>();
         GL.Flush();
         var sync = GL.FenceSync(GL.GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
-        rc?.AddFence(sync, () =>
-        {
-            GL.BindBuffer(GL.GL_PIXEL_PACK_BUFFER, pbo);
-            var ptr = GL.MapBufferRange(GL.GL_PIXEL_PACK_BUFFER, IntPtr.Zero, sz, GL.GL_MAP_READ_BIT);
-            var bytes = new byte[sz];
-            Marshal.Copy(ptr, bytes, 0, sz);
-            GL.UnmapBuffer(GL.GL_PIXEL_PACK_BUFFER);
-            GL.BindBuffer(GL.GL_PIXEL_PACK_BUFFER, 0);
-            ts.SetResult(bytes);
-        });
+        rc?.AddFence(sync, () => ts.SetResult(ReadPixelBuffer(pbo, sz)));
         return ts.Task;
+    }
+
+    // OL-0064: Copies the pixels of the pixel buffer of GetDataAsync, then deletes the buffer, also when the copy
+    // fails. Before, no code deleted the buffer, so each read kept its pixels in the memory of the driver.
+    internal static byte[] ReadPixelBuffer(uint pbo, int size)
+    {
+        GL.BindBuffer(GL.GL_PIXEL_PACK_BUFFER, pbo);
+        try
+        {
+            var ptr = GL.MapBufferRange(GL.GL_PIXEL_PACK_BUFFER, IntPtr.Zero, size, GL.GL_MAP_READ_BIT);
+            var bytes = new byte[size];
+            Marshal.Copy(ptr, bytes, 0, size);
+            GL.UnmapBuffer(GL.GL_PIXEL_PACK_BUFFER);
+            return bytes;
+        }
+        finally
+        {
+            GL.BindBuffer(GL.GL_PIXEL_PACK_BUFFER, 0);
+            GL.DeleteBuffer(pbo);
+        }
     }
 
     private int maxLevel = 0;
