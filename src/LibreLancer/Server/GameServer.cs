@@ -40,6 +40,10 @@ namespace LibreLancer.Server
 
         public string ScriptsFolder { get; set; } = null!;
 
+        /// <summary>Gets the trigger changes of each mission runtime that the server makes, or null (OL-0070). Set it
+        /// before the start of the server. The calls come on the server thread.</summary>
+        public LibreLancer.Missions.IMissionObserver? MissionObserver { get; set; }
+
         public int ThreadCount { get; set; } = Math.Min(1, (int)(Environment.ProcessorCount * 0.75));
 
         public IDesignTimeDbContextFactory<LibreLancerContext> DbContextFactory = null!;

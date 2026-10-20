@@ -30,9 +30,16 @@ namespace LibreLancer.Missions
         public Dictionary<string, MissionLabel> Labels = new(StringComparer.OrdinalIgnoreCase);
         private string? activeNNObjective;
 
-        public MissionRuntime(MissionScript script, Player player, uint[] triggerSave)
+        /// <summary>Gets the trigger changes of this runtime, or null (OL-0070). Without an observer, the runtime works as
+        /// before.</summary>
+        private readonly IMissionObserver? observer;
+
+        /// <param name="observer">Gets the trigger changes, or null. The starts of the saved triggers or of the start
+        /// triggers come in this constructor, so they reach the observer too.</param>
+        public MissionRuntime(MissionScript script, Player player, uint[] triggerSave, IMissionObserver? observer = null)
         {
             Script = script;
+            this.observer = observer;
 
             foreach (var lbl in Script.GetLabels())
             {
@@ -280,6 +287,7 @@ namespace LibreLancer.Missions
             active.Conditions = conds;
             FLLog.Info("Missions", $"Activate '{trigger}'");
             activeTriggers.Add(active);
+            observer?.TriggerChanged(t.Nickname, MissionTriggerChange.Started);
         }
 
         public void DeactivateTrigger(string trigger)
@@ -290,6 +298,9 @@ namespace LibreLancer.Missions
             if (x != null)
             {
                 FLLog.Info("Missions", $"Deactivate '{trigger}'");
+                // A second stop of a trigger that is not removed yet changes nothing, so the observer gets no change.
+                if (!x.Deactivated)
+                    observer?.TriggerChanged(x.Trigger.Nickname, MissionTriggerChange.Stopped);
                 x.Deactivated = true;
             }
             else
@@ -601,6 +612,8 @@ namespace LibreLancer.Missions
         private void DoTrigger(ScriptedTrigger tr)
         {
             FLLog.Info("Mission", "Running trigger " + tr.Nickname);
+            // The one place where the actions of a trigger run, also the instant run of a Cnd_True trigger.
+            observer?.TriggerChanged(tr.Nickname, MissionTriggerChange.Ran);
             foreach (var act in tr.Actions)
                 act.Invoke(this, Script);
         }

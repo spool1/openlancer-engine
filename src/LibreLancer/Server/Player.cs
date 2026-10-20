@@ -242,7 +242,9 @@ namespace LibreLancer.Server
         public void StartRandomMission(GeneratedRandomMission mission, NetMissionOffer netOffer)
         {
             ActiveRandomMissionPosition = mission.Parameters.TargetPosition;
-            msnRuntime = new MissionRuntime(mission.CreateScript(), this, []);
+            // The observer hears of the new runtime first, so the starts of the constructor come after it (OL-0070).
+            Game.MissionObserver?.MissionLoaded(mission.MissionType);
+            msnRuntime = new MissionRuntime(mission.CreateScript(), this, [], Game.MissionObserver);
             rpcClient.SetActiveRandomMission(netOffer);
             // Keep the objective in the mission runtime as well as on the client. This
             // makes the accepted offer a real active mission and lets the normal space
@@ -956,7 +958,10 @@ namespace LibreLancer.Server
 
                 // Load the mission script
                 var missionIni = Game.GameData.Items.Ini.LoadMissionIni(Story.CurrentMission);
-                msnRuntime = new MissionRuntime(new(missionIni!, Game.GameData.Items), this, loadTriggers!);
+                var script = new MissionScript(missionIni!, Game.GameData.Items);
+                // The observer hears of the new runtime first, so the starts of the constructor come after it (OL-0070).
+                Game.MissionObserver?.MissionLoaded(Story.CurrentMission.Nickname);
+                msnRuntime = new MissionRuntime(script, this, loadTriggers!, Game.MissionObserver);
                 msnPreload = msnRuntime.Script.CalculatePreloads(Game.GameData);
                 // rpcClient.SetPreloads(msnPreload); // TODO: Re-implement
 
