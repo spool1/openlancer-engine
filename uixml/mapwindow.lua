@@ -12,7 +12,7 @@ local function waypoint_list_item(text)
     li.Border = NewObject("UiRenderable");
     local wire = NewObject("DisplayWireBorder");
     wire.Color = GetColor("text");
-    wire.Width = 1;
+    wire.Thickness = 1;
     li.Border.AddElement(wire);
 
     li.ItemA = NewObject("Panel");
