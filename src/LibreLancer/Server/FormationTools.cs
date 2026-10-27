@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
+using LibreLancer.Data.Schema.Missions;
 using LibreLancer.Server.Components;
 using LibreLancer.World;
 using LibreLancer.World.Components;
@@ -35,6 +36,29 @@ public class FormationTools
     {
         // TODO: Gross
         var formDef = world.Server!.Server.GameData.Items.GetFormation(formation);
+        if (formDef == null)
+        {
+            FLLog.Warning("Mission", $"Formation definition `{formation}` was not found. Falling back to a simple group.");
+        }
+
+        var ships = new List<GameObject>();
+        foreach (var tgt in others)
+        {
+            if (tgt != null && world.GetObject(tgt) is { } o)
+            {
+                ships.Add(o);
+            }
+        }
+
+        MakeNewFormation(obj, formDef, ships);
+    }
+
+    // OL-0073: a second FollowPlayer list of the player crashed the game. The player that led a formation became a follower
+    // of its own new formation. The next list then left the player in the old formation, its disband cleared the
+    // formation of the player, and the last check read a null formation. The lead is now never its own follower, a ship
+    // that is already in the new formation stays, and the last check reads the new formation.
+    internal static void MakeNewFormation(GameObject obj, FormationDef? formDef, IReadOnlyList<GameObject> others)
+    {
         GameObject? player = null;
         bool playerLead = false;
         // Preserve player (required)
@@ -66,29 +90,24 @@ public class FormationTools
         }
         else
         {
-            FLLog.Warning("Mission", $"Formation definition `{formation}` was not found. Falling back to a simple group.");
             form = new ShipFormation(playerLead ? player! : obj);
         }
-        if (playerLead && player != null)
+        if (playerLead && player != null && player != obj)
         {
             form.Add(obj);
         }
 
         obj.Formation = form;
-        foreach (var tgt in others)
+        foreach (var o in others)
         {
-            var o = world.GetObject(tgt);
-            if (o == null)
+            if (form.Contains(o))
             {
                 continue;
             }
 
-            if (tgt != null)
-            {
-                o.Formation?.Remove(o);
-                form.Add(o);
-                o.Formation = form;
-            }
+            o.Formation?.Remove(o);
+            form.Add(o);
+            o.Formation = form;
 
             if (o.TryGetComponent<AutopilotComponent>(out var ap))
             {
@@ -96,7 +115,7 @@ public class FormationTools
             }
         }
 
-        if (player != null && !obj.Formation.Contains(player))
+        if (player != null && !form.Contains(player))
         {
             form.Add(player);
             player.Formation = form;
