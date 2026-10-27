@@ -40,7 +40,9 @@ namespace LibreLancer.Missions.Actions
                 if (!d.Source!.Equals("Player", StringComparison.OrdinalIgnoreCase))
                 {
                     voice = Act_SendComm.GetCommVoice(script, d.Source);
-                    var o = runtime.Player.Space!.World.GameWorld.GetObject(d.Source);
+                    // A docked player, or a player before the spawn of a load, has no space world. The line then has
+                    // no source ship, as Act_SendComm does (OL-0071).
+                    var o = runtime.Player.Space?.World.GameWorld.GetObject(d.Source);
                     sourceId = o?.NetID ?? 0;
                 }
 
