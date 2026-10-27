@@ -77,7 +77,15 @@ public class DirectiveRunnerComponent(GameObject parent) : GameComponent(parent)
         {
             case DockDirective dock:
             {
-                var tgt = world.GetObject(dock.Target)!;
+                // OL-0074: an old order of a mission play can name an object of another system. The ship goes on to
+                // its next order, as the update of a dock order does when the dock does not start.
+                if (world.GetObject(dock.Target) is not { } tgt)
+                {
+                    FLLog.Warning("ObjList", $"{Parent.Nickname} can't find dock target '{dock.Target}'");
+                    NextDirective(world);
+                    break;
+                }
+
                 if (Parent.TryGetComponent<AutopilotComponent>(out _))
                 {
                     if (tgt.TryGetComponent<SDockableComponent>(out var sd))
@@ -160,10 +168,14 @@ public class DirectiveRunnerComponent(GameObject parent) : GameComponent(parent)
                 {
                     pl.RunDirectiveIndex(index);
                 }
+                else if (world.GetObject(follow.Target) is { } tgtObject)
+                {
+                    FormationTools.EnterFormation(Parent, tgtObject, follow.Offset);
+                }
                 else
                 {
-                    var tgtObject = world.GetObject(follow.Target)!;
-                    FormationTools.EnterFormation(Parent, tgtObject, follow.Offset);
+                    // OL-0074: as for a dock order, a missing target does not stop the list.
+                    FLLog.Warning("ObjList", $"{Parent.Nickname} can't find follow target '{follow.Target}'");
                 }
 
                 NextDirective(world);

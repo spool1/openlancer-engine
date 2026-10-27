@@ -1,3 +1,4 @@
+using LibreLancer.Missions;
 using LibreLancer.Missions.Directives;
 using LibreLancer.World;
 using LibreLancer.World.Components;
@@ -43,5 +44,27 @@ public class DirectiveRunnerTests
         runner.SetDirectives([new AvoidanceDirective { Avoidance = enabled }], null!);
 
         Assert.Equal(enabled, autopilot.AvoidanceEnabled);
+    }
+
+    // An order to dock with or to follow an object that is not in the world (OL-0074). The ship goes on to its next
+    // order, and the game does not crash. A mission play can give an old order whose target is in another system.
+    [Theory]
+    [InlineData("dock")]
+    [InlineData("follow")]
+    public void AnOrderWithAMissingTargetGoesOnToTheNextOrder(string kind)
+    {
+        using var world = new GameWorld(null, null, null, null, initPhys: false);
+        var ship = new GameObject { Nickname = "ol_ship" };
+        var autopilot = new AutopilotComponent(ship);
+        ship.AddComponent(autopilot);
+        var runner = new DirectiveRunnerComponent(ship);
+        MissionDirective order = kind == "dock"
+            ? new DockDirective { Target = "ol_missing_gate" }
+            : new FollowDirective { Target = "ol_missing_ship" };
+
+        runner.SetDirectives([order, new AvoidanceDirective { Avoidance = true }], world);
+
+        Assert.True(autopilot.AvoidanceEnabled);
+        Assert.Null(ship.Formation);
     }
 }
