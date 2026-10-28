@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using LibreLancer.Data.Schema.Missions;
 using LibreLancer.Server.Components;
@@ -9,8 +10,15 @@ namespace LibreLancer.Server;
 
 public class FormationTools
 {
+    // OL-0075: in retail, a Follow order makes a ship follow its target, and the followers of a lead keep following that
+    // lead. Here the lead left its formation, so the next follower became the lead of the others, and that group stayed
+    // behind. Formations of the fork have one level, so the followers of the lead now come into the formation of the
+    // target too.
     public static void EnterFormation(GameObject self, GameObject tgt, Vector3 offset)
     {
+        var followers = self.Formation is { } own && own.LeadShip == self && own != tgt.Formation
+            ? own.Followers.ToList()
+            : [];
         if (self.Formation != null && self.Formation != tgt.Formation)
             self.Formation.Remove(self);
 
@@ -29,6 +37,15 @@ public class FormationTools
         if (self.TryGetComponent<AutopilotComponent>(out var ap))
         {
             ap.StartFormation();
+        }
+
+        foreach (var follower in followers)
+        {
+            follower.Formation?.Remove(follower);
+            tgt.Formation.Add(follower);
+            follower.Formation = tgt.Formation;
+            if (follower.TryGetComponent<AutopilotComponent>(out var followerAp))
+                followerAp.StartFormation();
         }
     }
 

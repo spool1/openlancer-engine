@@ -7,7 +7,7 @@ using Xunit;
 
 namespace LibreLancer.Tests;
 
-// OL-0073: FollowPlayer lists for the player, one after the other.
+// OL-0073: FollowPlayer lists for the player, one after the other. OL-0075: a Follow order of a lead.
 public class FormationToolsTests
 {
     private static readonly FormationDef Shape = new()
@@ -73,5 +73,42 @@ public class FormationToolsTests
 
         Assert.Same(player, player.Formation!.LeadShip);
         Assert.Equal(new[] { juni }, player.Formation.Followers);
+    }
+
+    [Fact]
+    public void ALeadThatFollowsTakesItsFollowersAlong()
+    {
+        var player = Player();
+        var ozu = new GameObject();
+        var juni = new GameObject();
+        var wing = new GameObject();
+        FormationTools.MakeNewFormation(ozu, Shape, [juni, wing]);
+
+        FormationTools.EnterFormation(ozu, player, new Vector3(-100, 50, -200));
+
+        var form = player.Formation;
+        Assert.NotNull(form);
+        Assert.Same(player, form.LeadShip);
+        Assert.Equal(new[] { ozu, juni, wing }, form.Followers);
+        Assert.Same(form, ozu.Formation);
+        Assert.Same(form, juni.Formation);
+        Assert.Same(form, wing.Formation);
+        Assert.Equal(new Vector3(-100, 50, -200), form.GetShipOffset(ozu));
+    }
+
+    [Fact]
+    public void AFollowerThatFollowsLeavesTheOthersWithTheirLead()
+    {
+        var player = Player();
+        var ozu = new GameObject();
+        var juni = new GameObject();
+        var wing = new GameObject();
+        FormationTools.MakeNewFormation(ozu, Shape, [juni, wing]);
+
+        FormationTools.EnterFormation(juni, player, Vector3.Zero);
+
+        Assert.Equal(new[] { juni }, player.Formation!.Followers);
+        Assert.Same(ozu, wing.Formation!.LeadShip);
+        Assert.Equal(new[] { wing }, ozu.Formation!.Followers);
     }
 }
