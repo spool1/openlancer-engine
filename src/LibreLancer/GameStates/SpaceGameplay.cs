@@ -98,6 +98,7 @@ namespace LibreLancer
         private bool crosshairHit = false;
         private const float UserWaypointReachDistance = 100f;
         private GameObject? missionWaypoint;
+        private readonly MissionWaypoint missionWaypointRule;
         private GameObject? userWaypoint;
         private int userWaypointCounter;
         private const float WaypointSelectionStartSize = 52f;
@@ -123,6 +124,7 @@ namespace LibreLancer
             this.session = session;
             sys = g.GameData.Items.Systems.Get(session.PlayerSystem)!;
             CreateHud();
+            missionWaypointRule = new MissionWaypoint(WorldObjectPoint, JumpPointToward);
             nextObjectiveUpdate = session.CurrentObjective.Ids;
             session.ObjectiveUpdated = () =>
             {
@@ -1878,19 +1880,16 @@ namespace LibreLancer
                 missionWaypoint = null;
             }
 
-            if (TryGetMissionWaypointPosition(out var pos))
+            if (missionWaypointRule.Move(session.CurrentObjective, sys.Nickname) is { } pos)
             {
-                if (pos != Vector3.Zero)
+                var waypointArch = Game.GameData.Items.Archetypes.Get("waypoint")!;
+                missionWaypoint = new GameObject(waypointArch, null, Game.ResourceManager)
                 {
-                    var waypointArch = Game.GameData.Items.Archetypes.Get("waypoint")!;
-                    missionWaypoint = new GameObject(waypointArch, null, Game.ResourceManager)
-                    {
-                        Name = new ObjectName(1091) // Mission Waypoint
-                    };
-                    missionWaypoint.SetTransform(new Transform3D(pos, Quaternion.Identity));
-                    world.AddObject(missionWaypoint);
-                    missionWaypoint.Register(world);
-                }
+                    Name = new ObjectName(1091) // Mission Waypoint
+                };
+                missionWaypoint.SetTransform(new Transform3D(pos, Quaternion.Identity));
+                world.AddObject(missionWaypoint);
+                missionWaypoint.Register(world);
             }
         }
 
@@ -1925,50 +1924,27 @@ namespace LibreLancer
             }
         }
 
-        private bool TryGetMissionWaypointPosition(out Vector3 position)
+        // The point of a world object for the mission waypoint, or null when the client does not have the object.
+        private Vector3? WorldObjectPoint(string nickname) => world.GetObject(nickname)?.Transform.Position;
+
+        // The point of the jump object of this system on the shortest route to the system. It gives null when the
+        // game data has no route or no jump object.
+        private Vector3? JumpPointToward(string system)
         {
-            position = Vector3.Zero;
-            var objective = session.CurrentObjective;
-            if (objective.Kind != ObjectiveKind.Object && objective.Kind != ObjectiveKind.NavMarker)
-                return false;
-
-            if (objective.Kind == ObjectiveKind.Object && !string.IsNullOrWhiteSpace(objective.Object))
-            {
-                var currentObject = world.GetObject(objective.Object);
-                if (currentObject != null)
-                {
-                    position = currentObject.Transform.Position;
-                    return true;
-                }
-            }
-
-            var objectiveSystem = objective.System;
-            if (string.IsNullOrWhiteSpace(objectiveSystem))
-                return false;
-
-            if (sys.Nickname.Equals(objectiveSystem, StringComparison.OrdinalIgnoreCase))
-            {
-                position = objective.Kind == ObjectiveKind.NavMarker
-                    ? objective.Position
-                    : (world.GetObject(objective.Object)?.Transform ?? Transform3D.Identity).Position;
-                return position != Vector3.Zero;
-            }
-
-            var targetSystem = Game.GameData.Items.Systems.Get(objectiveSystem);
+            var targetSystem = Game.GameData.Items.Systems.Get(system);
             if (targetSystem == null ||
                 !sys.ShortestPathsAny.TryGetValue(targetSystem, out var path) ||
                 path.Count < 2)
-                return false;
+                return null;
 
             var nextSystem = path[1].Nickname;
             var jumpObject = sys.Objects.FirstOrDefault(x =>
                 x.Dock is { Kind: DockKinds.Jump } &&
                 x.Dock.Target?.Equals(nextSystem, StringComparison.OrdinalIgnoreCase) == true);
             if (jumpObject == null)
-                return false;
+                return null;
 
-            position = world.GetObject(jumpObject.Nickname)?.Transform.Position ?? jumpObject.Position;
-            return position != Vector3.Zero;
+            return world.GetObject(jumpObject.Nickname)?.Transform.Position ?? jumpObject.Position;
         }
 
         private int CrosshairSize()
@@ -2081,6 +2057,11 @@ namespace LibreLancer
             if (waitObjectiveFrames > 0)
             {
                 waitObjectiveFrames--;
+            }
+
+            if (missionWaypointRule.MustMove(session.CurrentObjective))
+            {
+                objectiveObjectsDirty = true;
             }
 
             if (objectiveObjectsDirty)
