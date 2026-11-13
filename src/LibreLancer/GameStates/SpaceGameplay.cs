@@ -1867,7 +1867,8 @@ namespace LibreLancer
             }
         }
 
-        private void UpdateObjectiveObjects()
+        // Removes the mission waypoint, and makes a new one at the point of the waypoint rule, or none for no point.
+        private void UpdateObjectiveObjects(Vector3? point)
         {
             if (missionWaypoint != null)
             {
@@ -1880,7 +1881,7 @@ namespace LibreLancer
                 missionWaypoint = null;
             }
 
-            if (missionWaypointRule.Move(session.CurrentObjective, sys.Nickname) is { } pos)
+            if (point is { } pos)
             {
                 var waypointArch = Game.GameData.Items.Archetypes.Get("waypoint")!;
                 missionWaypoint = new GameObject(waypointArch, null, Game.ResourceManager)
@@ -2059,15 +2060,16 @@ namespace LibreLancer
                 waitObjectiveFrames--;
             }
 
-            if (missionWaypointRule.MustMove(session.CurrentObjective))
-            {
-                objectiveObjectsDirty = true;
-            }
-
-            if (objectiveObjectsDirty)
+            // The waypoint rule does the whole step of the frame (OL-0077). Its tests drive the same step.
+            var waypointChange = missionWaypointRule.Update(session.CurrentObjective, sys.Nickname, out var waypointPoint);
+            if (objectiveObjectsDirty || waypointChange == MissionWaypoint.Change.Make)
             {
                 objectiveObjectsDirty = false;
-                UpdateObjectiveObjects();
+                UpdateObjectiveObjects(waypointPoint);
+            }
+            else if (waypointChange == MissionWaypoint.Change.Move && missionWaypoint != null && waypointPoint is { } moved)
+            {
+                missionWaypoint.SetTransform(new Transform3D(moved, Quaternion.Identity));
             }
 
             UpdateWaypointRenderStyle();
