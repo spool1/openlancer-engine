@@ -49,6 +49,11 @@ public abstract class ScriptedCondition : TriggerEntry
     protected static bool IdEqual(string a, string b) =>
         string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
+    // Tells if a distance is on the side of a distance check (OL-0078). Retail is strict on both sides. So a distance
+    // exactly at the radius is neither inside nor outside.
+    protected static bool OnSide(bool inside, float distance, float radius) =>
+        inside ? distance < radius : distance > radius;
+
     public static readonly TriggerConditions[] Unsupported =
     [
         TriggerConditions.Cnd_CmpToPlane,
@@ -1145,8 +1150,7 @@ public class Cnd_DistVecLbl : ScriptedCondition
             {
                 continue;
             }
-            bool isInside = Vector3.Distance(obj.Transform.Position, Position) <= Distance;
-            satisfied = isInside == Inside;
+            satisfied = OnSide(Inside, Vector3.Distance(obj.Transform.Position, Position), Distance);
             if (satisfied && Any)
             {
                 return true;
@@ -1212,11 +1216,11 @@ public class Cnd_DistVec : ScriptedCondition
         var obj = space.World.GameWorld.GetObject(SourceShip);
         if (obj == null)
             return false;
-        bool isInside = Vector3.Distance(obj.Transform.Position, Position) <= Distance;
+        bool onSide = OnSide(Inside, Vector3.Distance(obj.Transform.Position, Position), Distance);
         if (TickAway.Present)
         {
             var st = (ConditionDouble)self.Storage;
-            if (Inside == isInside)
+            if (onSide)
             {
                 st.Value -= elapsed;
             }
@@ -1226,7 +1230,7 @@ public class Cnd_DistVec : ScriptedCondition
             }
             return st.Value <= 0;
         }
-        return Inside == isInside;
+        return onSide;
     }
 
     public override void Write(IniBuilder.IniSectionBuilder section)
@@ -1289,11 +1293,11 @@ public class Cnd_DistShip : ScriptedCondition
         var obj2 = space.World.GameWorld.GetObject(DestObject);
         if (obj == null || obj2 == null)
             return false;
-        var isInside = Vector3.Distance(obj.Transform.Position, obj2.Transform.Position) <= Distance;
+        bool onSide = OnSide(Inside, Vector3.Distance(obj.Transform.Position, obj2.Transform.Position), Distance);
         if (TickAway.Present)
         {
             var st = (ConditionDouble)self.Storage;
-            if (Inside == isInside)
+            if (onSide)
             {
                 st.Value -= elapsed;
             }
@@ -1307,7 +1311,7 @@ public class Cnd_DistShip : ScriptedCondition
             }
             return st.Value <= 0;
         }
-        return Inside == isInside;
+        return onSide;
     }
 
     public override void Write(IniBuilder.IniSectionBuilder section)
