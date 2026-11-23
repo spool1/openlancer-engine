@@ -41,6 +41,13 @@ namespace LibreLancer.Server.Components
             Open = true;
         }
 
+        // A ship that docks here is still near its dock path (OL-0079). The door stays open for OPEN_DURATION after
+        // the last call. So it does not close in front of a ship that is still on the way in.
+        public void KeepOpen()
+        {
+            CloseTimer = OPEN_DURATION;
+        }
+
         private bool Animate(bool close, GameObject parent, GameWorld world)
         {
             var component = parent.GetComponent<AnimationComponent>();
@@ -115,28 +122,48 @@ namespace LibreLancer.Server.Components
             }
 
             var rad = obj.PhysicsComponent?.Body.Collider.Radius ?? 15;
-            var pos = obj.Transform.Position;
-            var hp = Action.Kind == DockKinds.Tradelane && tradelaneHardpoint != null
-                ? Parent.GetHardpoint(tradelaneHardpoint)
-                : hardpoints.GetDockHardpoints(Parent, i, obj.Transform.Position, false).FirstOrDefault();
-            if (hp == null)
+            var dist = DistanceToDockPath(i, obj, tradelaneHardpoint);
+            if (dist >= animRadius + rad)
             {
                 return;
             }
 
-            var targetPos = (Action.Kind == DockKinds.Tradelane
-                    ? hp.TransformNoRotate
-                    : hp.Transform) * Parent.Transform;
-            var dist = (targetPos.Position - pos).Length();
-
             var forceAnimation = HasDockAnimation(i) &&
                                  DockPoints[i].Open &&
                                  !DockPoints[i].OpenAnimationStarted;
-            if ((!DockPoints[i].Open || forceAnimation) &&
-                dist < animRadius + rad)
+            if (!DockPoints[i].Open || forceAnimation)
             {
                 TriggerAnimation(i, world, forceAnimation, tradelaneHardpoint);
             }
+            else
+            {
+                // An open door stays open while the ship is near its dock path (OL-0079). Before, the door closed
+                // OPEN_DURATION after it opened, also when the ship was still on the way to the dock sphere. A slow last
+                // approach then stopped the ship at the closed door.
+                DockPoints[i].KeepOpen();
+            }
+        }
+
+        // The distance from the ship to the nearest point of its dock path (OL-0079). Before, only the outer point
+        // counted. A ship deep in a long dock path was then far from that point while it flew in.
+        private float DistanceToDockPath(int i, GameObject obj, string? tradelaneHardpoint)
+        {
+            var pos = obj.Transform.Position;
+            if (Action.Kind == DockKinds.Tradelane && tradelaneHardpoint != null)
+            {
+                var lane = Parent.GetHardpoint(tradelaneHardpoint);
+                return lane == null
+                    ? float.MaxValue
+                    : ((lane.TransformNoRotate * Parent.Transform).Position - pos).Length();
+            }
+
+            var dist = float.MaxValue;
+            foreach (var hp in hardpoints.GetDockHardpoints(Parent, i, pos, false))
+            {
+                dist = Math.Min(dist, ((hp.Transform * Parent.Transform).Position - pos).Length());
+            }
+
+            return dist;
         }
 
         private int GetTradelaneDockIndex(string hardpoint, int fallback)
