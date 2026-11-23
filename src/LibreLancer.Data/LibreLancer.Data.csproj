@@ -37,6 +37,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="LibreLancer.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="Storyline\Storyline.default.ini" />
   </ItemGroup>
 

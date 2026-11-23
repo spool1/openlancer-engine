@@ -492,7 +492,8 @@ public class GameItemDb
     public long GetShipPrice(Ship ship, Base? at) =>
         at?.GetShipPrice(ship, GetShipPrice(ship)) ?? GetShipPrice(ship);
 
-    private void InitGoods()
+    // Internal for the market tests (OL-0081): they read the market lines of goods without the other game data.
+    internal void InitGoods()
     {
         FLLog.Info("Game", "Initing " + flData.Goods!.Goods.Count + " goods");
         Goods = [];
@@ -551,7 +552,8 @@ public class GameItemDb
         flData.Goods = null; //Free memory
     }
 
-    private void InitMarkets()
+    // Internal for the market tests (OL-0081), see InitGoods.
+    internal void InitMarkets()
     {
         FLLog.Info("Game", "Initing " + flData.Markets!.BaseGoods.Count + " shops");
 

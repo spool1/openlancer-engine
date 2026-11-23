@@ -71,6 +71,8 @@ public class Base : NamedItem
     /// </summary>
     /// <remarks>
     /// <list type="bullet">
+    /// <item>Retail skips a line in which each value after the good has its default value (see
+    /// <see cref="MarketGood.HasOnlyDefaults"/>, OL-0081). The earlier line of the good then counts.</item>
     /// <item>A line of a ship package sells the ship when its minimum stock or its maximum stock is not 0. A later line
     /// with the minimum stock 0 and the maximum stock 0 stops the sale of the ship.</item>
     /// <item>A line of a hull good sets the market price of its ship at the base (see <see cref="GetShipPrice"/>).</item>
@@ -86,6 +88,8 @@ public class Base : NamedItem
     public void AddMarketLine(MarketGood line, string sourceFile, ShipPackage? package, ResolvedGood? good, Ship? hull,
         long hullPrice)
     {
+        if (line.HasOnlyDefaults)
+            return;
         if (package != null)
         {
             var index = SoldShips.FindIndex(x => x.Package == package);

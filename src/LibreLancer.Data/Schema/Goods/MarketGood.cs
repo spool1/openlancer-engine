@@ -19,6 +19,14 @@ public class MarketGood
     public int TransactionType;
     public float Multiplier;
 
+    /// <summary>
+    /// True when each value after the good has its default value: the rank 0, the reputation -1, the minimum stock 0,
+    /// the maximum stock 0, the transaction type 0 and the multiplier 1. Retail skips such a line, so the earlier line of
+    /// the good counts (OL-0081).
+    /// </summary>
+    public bool HasOnlyDefaults =>
+        Rank == 0 && Rep == -1 && Min == 0 && Max == 0 && TransactionType == 0 && Multiplier == 1;
+
     public MarketGood() { }
     public MarketGood(Entry e)
     {

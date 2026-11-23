@@ -12,7 +12,9 @@ namespace LibreLancer.Tests;
 // The market of a base keeps the last line of each good, as retail does (OL-0080). Before, the engine added each line
 // of a good as one more entry, added a ship only when a line sold it and never removed the ship. So a later line could
 // not change or remove an earlier line. The trade-in value of a ship comes from the market price of its hull good at the
-// base, as retail gives it. Before, the engine did not read a market line of a hull good.
+// base, as retail gives it. Before, the engine did not read a market line of a hull good. Retail skips a line in which
+// each value after the good has its default value (OL-0081). Before, the engine read such a line, so it stopped the
+// sale of the good.
 public class MarketParityTests
 {
     private const string FirstFile = "market_commodities.ini";
@@ -139,5 +141,46 @@ public class MarketParityTests
 
         Assert.Equal(6000, b.GetShipPrice(Fighter, 6000));
         Assert.Equal(4800UL, TradeConstants.ShipResale(b.GetShipPrice(Fighter, 6000)));
+    }
+
+    [Fact]
+    public void ALaterLineWithOnlyDefaultValuesKeepsTheEarlierLineOfTheCommodity()
+    {
+        var b = NewBase();
+        var water = Commodity("sample_water", 100);
+        var food = Commodity("sample_food", 40);
+
+        b.AddMarketLine(Line("sample_water, 0, -1, 150, 500, 0, 1.2"), FirstFile, null, water, null, 0);
+        b.AddMarketLine(Line("sample_water, 0, -1, 0, 0, 0, 1"), LaterFile, null, water, null, 0);
+        b.AddMarketLine(Line("sample_food, 0, -1, 0, 0, 0, 1"), LaterFile, null, food, null, 0);
+
+        var sold = Assert.Single(b.SoldGoods);
+        Assert.Same(water, sold.Good);
+        Assert.True(sold.ForSale);
+        Assert.Equal(120UL, sold.Price);
+        Assert.Equal(FirstFile, sold.SourceFile);
+    }
+
+    [Fact]
+    public void ALaterLineWithOnlyDefaultValuesKeepsTheShipForSale()
+    {
+        var b = NewBase();
+        var package = Package("sample_fighter_package");
+
+        b.AddMarketLine(Line("sample_fighter_package, 3, -1, 1, 1, 0, 1"), FirstFile, package, null, null, 0);
+        b.AddMarketLine(Line("sample_fighter_package, 0, -1, 0, 0, 0, 1"), LaterFile, package, null, null, 0);
+
+        Assert.Equal(3, Assert.Single(b.SoldShips).Rank);
+    }
+
+    [Fact]
+    public void ALaterLineOfTheHullGoodWithOnlyDefaultValuesKeepsThePriceOfTheShip()
+    {
+        var b = NewBase();
+
+        b.AddMarketLine(Line("sample_fighter_hull, 0, -1, 0, 0, 1, 0.5"), FirstFile, null, null, Fighter, 6000);
+        b.AddMarketLine(Line("sample_fighter_hull, 0, -1, 0, 0, 0, 1"), LaterFile, null, null, Fighter, 6000);
+
+        Assert.Equal(3000, b.GetShipPrice(Fighter, 6000));
     }
 }
