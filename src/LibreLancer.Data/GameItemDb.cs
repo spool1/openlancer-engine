@@ -100,6 +100,9 @@ public class GameItemDb
     private Dictionary<string, ShipPackage> shipPackages = new();
     private Dictionary<string, long> shipPrices = new(StringComparer.OrdinalIgnoreCase);
 
+    // The hull goods by their nickname, for the market lines of hull goods (OL-0080).
+    private Dictionary<string, Good> hullGoods = new(StringComparer.OrdinalIgnoreCase);
+
     private Dictionary<string, string> shipToIcon = new(StringComparer.OrdinalIgnoreCase);
 
     private Dictionary<string, ResolvedTexturePanels> tpanels = new(StringComparer.OrdinalIgnoreCase);
@@ -484,11 +487,16 @@ public class GameItemDb
         return price;
     }
 
+    /// <summary>The market price of a ship at a base, or the price of its hull good without a base (OL-0080, see
+    /// <see cref="Base.GetShipPrice"/>).</summary>
+    public long GetShipPrice(Ship ship, Base? at) =>
+        at?.GetShipPrice(ship, GetShipPrice(ship)) ?? GetShipPrice(ship);
+
     private void InitGoods()
     {
         FLLog.Info("Game", "Initing " + flData.Goods!.Goods.Count + " goods");
         Goods = [];
-        Dictionary<string, Good> hulls = new(256, StringComparer.OrdinalIgnoreCase);
+        var hulls = hullGoods;
         List<Good> ships = [];
 
         foreach (var g in flData.Goods.Goods)
@@ -556,25 +564,19 @@ public class GameItemDb
                 continue;
             }
 
+            // Retail keeps the last line of a good at a base (OL-0080, see Base.AddMarketLine).
             foreach (var gd in m.MarketGoods)
             {
-                if (shipPackages.TryGetValue(gd.Good!, out var sp))
+                ShipPackage? package = null;
+                ResolvedGood? good = null;
+                Ship? hull = null;
+                long hullPrice = 0;
+                if (!shipPackages.TryGetValue(gd.Good!, out package) && !Goods.TryGetValue(gd.Good, out good) &&
+                    hullGoods.TryGetValue(gd.Good, out var hullGood) && Ships.TryGetValue(hullGood.Ship!, out hull))
                 {
-                    if (gd.Min != 0 || gd.Max != 0) //Vanilla adds disabled ships ??? (why)
-                    {
-                        b.SoldShips.Add(new SoldShip() { Package = sp, Rank = gd.Rank });
-                    }
+                    hullPrice = hullGood.Price;
                 }
-                else if (Goods.TryGetValue(gd.Good, out var good))
-                {
-                    b.SoldGoods.Add(new BaseSoldGood(
-                        gd.Rank,
-                        good!,
-                        gd.Rep,
-                        (ulong)((double)good!.Ini.Price * gd.Multiplier),
-                        gd.Max > 0,
-                        m.SourceFile));
-                }
+                b.AddMarketLine(gd, m.SourceFile, package, good, hull, hullPrice);
             }
         }
 

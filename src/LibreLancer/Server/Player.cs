@@ -753,7 +753,22 @@ namespace LibreLancer.Server
         {
             if (Character!.Ship == null)
                 return 0;
-            return (ulong) (Game.GameData.Items.GetShipPrice(Character.Ship) * TradeConstants.SHIP_RESALE_MULTIPLIER);
+            return TradeConstants.ShipResale(Game.GameData.Items.GetShipPrice(Character.Ship));
+        }
+
+        /// <summary>
+        /// The trade-in value of the ship of the player at the base where the player is docked (OL-0080). Retail gives
+        /// the market price of the ship at that base times the resale factor (see
+        /// <see cref="LibreLancer.Data.GameData.World.Base.GetShipPrice"/>). In space, the value is the worth of
+        /// <see cref="GetShipWorth"/>. The net worth keeps that worth.
+        /// </summary>
+        public ulong GetShipTradeInValue()
+        {
+            if (Character!.Ship == null)
+                return 0;
+            return Baseside?.BaseData is { } at
+                ? TradeConstants.ShipResale(Game.GameData.Items.GetShipPrice(Character.Ship, at))
+                : GetShipWorth();
         }
 
         public long CalculateNetWorth()
@@ -885,6 +900,7 @@ namespace LibreLancer.Server
 
             foreach (var s in b.SoldShips)
             {
+                var hullPrice = (ulong) Game.GameData.Items.GetShipPrice(s.Package.Ship, b);
                 ulong goodsPrice = 0;
 
                 foreach (var eq in s.Package.Addons)
@@ -896,8 +912,8 @@ namespace LibreLancer.Server
                 {
                     ShipCRC = (int)s.Package.Ship.CRC,
                     PackageCRC = (int) FLHash.CreateID(s.Package.Nickname),
-                    HullPrice = (ulong) s.Package.BasePrice,
-                    PackagePrice = (ulong) s.Package.BasePrice + goodsPrice,
+                    HullPrice = hullPrice,
+                    PackagePrice = hullPrice + goodsPrice,
                     Rank = s.Rank
                 };
             }
@@ -908,6 +924,8 @@ namespace LibreLancer.Server
             // load base
             Space = null;
             Baseside = new BasesidePlayer(this, Game.GameData.Items.Bases.Get(Base)!);
+            // The ship worth is the trade-in value at this base (OL-0080).
+            SendInventory(false);
             // fetch news articles
             var news = new List<NewsArticle>();
 
@@ -1450,10 +1468,18 @@ namespace LibreLancer.Server
 
         public void UpdateCurrentInventory(bool resetDestroyedParts = false)
         {
+            SendInventory(resetDestroyedParts);
+            Story?.Update(this);
+        }
+
+        // The ship worth of the inventory is the trade-in value at the base where the player is docked. The client ship
+        // dealer reads it (OL-0080).
+        private void SendInventory(bool resetDestroyedParts)
+        {
             PlayerInventory newInventory = new()
             {
                 Credits = Character!.Credits,
-                ShipWorth = GetShipWorth(),
+                ShipWorth = GetShipTradeInValue(),
                 NetWorth = (ulong) CalculateNetWorth(),
                 Loadout = Character.EncodeLoadout()
             };
@@ -1465,8 +1491,6 @@ namespace LibreLancer.Server
             {
                 rpcClient.UpdateInventory(diff);
             }
-
-            Story?.Update(this);
         }
 
         public void ForceLand(string? target)

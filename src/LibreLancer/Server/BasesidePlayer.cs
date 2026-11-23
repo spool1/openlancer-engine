@@ -421,7 +421,7 @@ public class BasesidePlayer : IBasesidePlayer
 
         var packagePrice = GetPackagePrice(resolved);
 
-        if (Player.Character.Credits + (long) Player.GetShipWorth() + GetPlayerCargoWorth() < packagePrice)
+        if (Player.Character.Credits + (long) Player.GetShipTradeInValue() + GetPlayerCargoWorth() < packagePrice)
         {
             FLLog.Error("Player", $"{Player.Name} does not have enough total value for ship package {resolved.Nickname}");
             return Task.FromResult(ShipPurchaseStatus.Fail);
@@ -429,7 +429,7 @@ public class BasesidePlayer : IBasesidePlayer
 
         var included = resolved.Addons.Select(x => new SaleAddon(x)).ToList<SaleAddon?>();
 
-        var shipPrice = packagePrice - (long) Player.GetShipWorth();
+        var shipPrice = packagePrice - (long) Player.GetShipTradeInValue();
 
         // Sell included Items
         foreach (var item in sellPackage)
@@ -655,7 +655,7 @@ public class BasesidePlayer : IBasesidePlayer
 
     private long GetPackagePrice(ShipPackage package)
     {
-        var price = package.BasePrice;
+        var price = Player.Game.GameData.Items.GetShipPrice(package.Ship, BaseData);
 
         foreach (var addon in package.Addons)
         {
